@@ -7,10 +7,16 @@ from __future__ import annotations
 
 from typing import Optional, Any
 
-import idaapi  # type: ignore
+try:
+    import idaapi  # type: ignore
+except ImportError:
+    idaapi = None
 
 # 检测 IDA 版本
-IDA_VERSION = idaapi.IDA_SDK_VERSION if hasattr(idaapi, 'IDA_SDK_VERSION') else 0
+if idaapi:
+    IDA_VERSION = idaapi.IDA_SDK_VERSION if hasattr(idaapi, 'IDA_SDK_VERSION') else 0
+else:
+    IDA_VERSION = 0
 IDA9_OR_LATER = IDA_VERSION >= 900
 
 # 尝试导入 ida_struct (IDA 8.x)
@@ -21,8 +27,15 @@ except ImportError:
     _ida_struct = None
     HAS_IDA_STRUCT = False
 
-import ida_typeinf  # type: ignore
-import idc  # type: ignore
+try:
+    import ida_typeinf  # type: ignore
+except ImportError:
+    ida_typeinf = None
+
+try:
+    import idc  # type: ignore
+except ImportError:
+    idc = None
 
 
 # ============================================================================

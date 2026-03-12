@@ -23,20 +23,37 @@ import hashlib
 from typing import Annotated, Optional, List, Union
 
 from .rpc import tool
-from .sync import idaread
+from .sync import idaread, idawrite
 from .utils import parse_address, paginate, pattern_filter, normalize_arch, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import idautils  # type: ignore
-import ida_funcs  # type: ignore
-import ida_bytes  # type: ignore
-import ida_typeinf  # type: ignore
-import ida_segment  # type: ignore
-import ida_nalt  # type: ignore
-import ida_entry  # type: ignore
-import ida_name  # type: ignore
-import ida_kernwin  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import idautils  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_bytes  # type: ignore
+    import ida_typeinf  # type: ignore
+    import ida_segment  # type: ignore
+    import ida_nalt  # type: ignore
+    import ida_entry  # type: ignore
+    import ida_name  # type: ignore
+    import ida_kernwin  # type: ignore
+    import ida_loader  # type: ignore
+    import ida_pro  # type: ignore
+except ImportError:
+    # 允许在非 IDA 环境下导入（如测试），但相关功能将不可用
+    idaapi = None
+    idautils = None
+    ida_funcs = None
+    ida_bytes = None
+    ida_typeinf = None
+    ida_segment = None
+    ida_nalt = None
+    ida_entry = None
+    ida_name = None
+    ida_kernwin = None
+    ida_loader = None
+    ida_pro = None
 
 from . import registry
 
@@ -126,9 +143,31 @@ def list_instances() -> List[dict]:
 # ============================================================================
 
 @tool
+@idawrite
+def close_ida(
+    save: Annotated[bool, "Whether to save IDB file before closing"] = True,
+) -> dict:
+    """Close IDA Pro instance. Warning: This terminates the process."""
+    try:
+        if save:
+            # Save to current IDB
+            # save_database(outfile, flags) -> bool
+            # passing None as outfile saves to current database
+            if not ida_loader.save_database(None, 0):
+                 return {"error": "Failed to save database"}
+        
+        # Exit
+        ida_pro.qexit(0)
+        return {"status": "ok", "message": "IDA is closing"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@tool
 @idaread
 def get_metadata() -> dict:
     """Get IDB metadata (input_file, arch, bits, endian, hash)."""
+
     # 获取输入文件
     try:
         input_file = idaapi.get_input_file_path()

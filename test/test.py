@@ -14,6 +14,7 @@
     python test/test.py --stack         # Stack 模块（栈帧变量）
     python test/test.py --debug         # Debug 模块（调试器，需手动配置）
     python test/test.py --resources     # Resources 模块（MCP 资源）
+    python test/test.py --lifecycle     # Lifecycle 模块（启动/关闭 IDA）
     
     # 传输模式:
     python test/test.py --transport=stdio    # 只测试 stdio 模式
@@ -40,7 +41,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # 可用的模块 markers
-MODULES = ["core", "analysis", "types", "modify", "memory", "stack", "debug", "resources"]
+MODULES = ["core", "analysis", "types", "modify", "memory", "stack", "debug", "resources", "lifecycle"]
 
 
 def check_coordinator() -> bool:

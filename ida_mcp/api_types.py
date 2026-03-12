@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import sys
 from typing import Annotated, Optional, List, Dict, Any, Union
 
 from .rpc import tool
@@ -18,10 +17,40 @@ from .sync import idaread, idawrite
 from .utils import parse_address, is_valid_c_identifier, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import ida_funcs  # type: ignore
-import ida_typeinf  # type: ignore
-import ida_hexrays  # type: ignore
+try:
+    import idaapi  # type: ignore
+except ImportError:
+    idaapi = None
+
+try:
+    import ida_typeinf  # type: ignore
+except ImportError:
+    ida_typeinf = None
+
+try:
+    import ida_funcs  # type: ignore
+except ImportError:
+    ida_funcs = None
+
+try:
+    import ida_nalt  # type: ignore
+except ImportError:
+    ida_nalt = None
+
+try:
+    import ida_struct  # type: ignore
+except ImportError:
+    ida_struct = None
+
+try:
+    import ida_hexrays  # type: ignore
+except ImportError:
+    ida_hexrays = None
+
+try:
+    import ida_kernwin  # type: ignore
+except ImportError:
+    ida_kernwin = None
 
 # PT_SIL = 1: 静默解析，不显示语法错误对话框
 PT_SIL = getattr(ida_typeinf, 'PT_SIL', 1)
@@ -29,51 +58,6 @@ PT_SIL = getattr(ida_typeinf, 'PT_SIL', 1)
 PT_TYP = getattr(ida_typeinf, 'PT_TYP', 2)
 # PT_EMPTY = 0x4000: 允许空声明
 PT_EMPTY = getattr(ida_typeinf, 'PT_EMPTY', 0x4000)
-
-
-# ============================================================================
-# 类型声明辅助函数
-# ============================================================================
-
-def _parse_decls_ctypes(decls: str, hti_flags: int) -> tuple:
-    """使用 ctypes 调用 parse_decls (仅 Windows)。
-    
-    返回:
-        (errors: int, messages: List[str])
-    """
-    if sys.platform != "win32":
-        return (-1, ["parse_decls_ctypes only supported on Windows"])
-    
-    try:
-        import ctypes
-        
-        c_decls = decls.encode("utf-8")
-        c_til = None
-        ida_dll = ctypes.CDLL("ida")
-        ida_dll.parse_decls.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_char_p,
-            ctypes.c_void_p,
-            ctypes.c_int,
-        ]
-        ida_dll.parse_decls.restype = ctypes.c_int
-        
-        messages: List[str] = []
-        
-        @ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p)
-        def magic_printer(fmt: bytes, arg1: bytes):
-            if fmt.count(b"%") == 1 and b"%s" in fmt:
-                formatted = fmt.replace(b"%s", arg1)
-                messages.append(formatted.decode("utf-8", errors="replace"))
-                return len(formatted) + 1
-            else:
-                messages.append(f"unsupported magic_printer fmt: {repr(fmt)}")
-                return 0
-        
-        errors = ida_dll.parse_decls(c_til, c_decls, magic_printer, hti_flags)
-        return (errors, messages)
-    except Exception as e:
-        return (-1, [str(e)])
 
 
 def _parse_decls_python(decls: str, hti_flags: int) -> tuple:
@@ -110,12 +94,9 @@ def declare_type(
     # 这比 parse_decl + set_named_type 更可靠
     hti_flags = PT_SIL | PT_TYP | PT_EMPTY
     
-    # 尝试 ctypes 方式 (Windows)
-    errors, messages = _parse_decls_ctypes(decl_text, hti_flags)
-    
-    # 如果 ctypes 失败，尝试 Python API
-    if errors < 0:
-        errors, messages = _parse_decls_python(decl_text, hti_flags)
+    # 只使用 IDAPython API，避免 ctypes/native parse_decls 在 Windows 上
+    # 把 IDA UI 主线程长时间阻塞。
+    errors, messages = _parse_decls_python(decl_text, hti_flags)
     
     if errors > 0:
         return {
@@ -555,48 +536,52 @@ def list_structs(
     items: List[dict] = []
     
     try:
-        # 使用 get_ordinal_limit() 获取 ordinal 上限（参考 ida-pro-mcp 实现）
-        limit = ida_typeinf.get_ordinal_limit()  # type: ignore
-        
-        for ordinal in range(1, limit):
+        qty = ida_typeinf.get_ordinal_qty()  # type: ignore
+        substr = pattern.lower() if pattern else None
+        til = idaapi.cvar.idati  # type: ignore
+
+        for ordinal in range(1, qty + 1):
+            try:
+                name = ida_typeinf.get_numbered_type_name(til, ordinal)  # type: ignore
+            except Exception:
+                name = None
+
+            if not name:
+                continue
+
+            if substr and substr not in name.lower():
+                continue
+
             try:
                 tif = ida_typeinf.tinfo_t()
-                # 使用 tinfo_t.get_numbered_type(None, ordinal) 方法
-                tif.get_numbered_type(None, ordinal)
-                
-                # 只保留 UDT (User Defined Types: struct/union)
-                if not tif.is_udt():
+                ida_typeinf.get_numbered_type(til, ordinal, tif)  # type: ignore
+
+                if not (tif.is_struct() or tif.is_union()):
                     continue
-                
-                name = tif.get_type_name()
-                if not name:
-                    continue
-                
-                # 获取成员信息
+
                 udt = ida_typeinf.udt_type_data_t()
                 member_count = 0
-                is_union = False
+                is_union = tif.is_union()
                 if tif.get_udt_details(udt):
                     member_count = udt.size()
-                    is_union = udt.is_union
-                
+
+                try:
+                    size = tif.get_size()
+                except Exception:
+                    size = 0
+
                 items.append({
                     "ordinal": ordinal,
                     "name": name,
                     "kind": "union" if is_union else "struct",
-                    "size": tif.get_size(),
+                    "size": size,
                     "members": member_count,
                 })
             except Exception:
                 continue
     except Exception:
         pass
-    
-    # 过滤
-    if pattern:
-        substr = pattern.lower()
-        items = [it for it in items if substr in it.get('name', '').lower()]
-    
+
     return {"total": len(items), "items": items}
 
 

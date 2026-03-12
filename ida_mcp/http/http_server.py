@@ -70,8 +70,8 @@ class _SessionStickyMiddleware:
                     if k.lower() == b"mcp-session-id":
                         middleware_self._session_id = v.decode("ascii")
                         break
-                # 404 表示 session 已终止, 清除缓存
-                if message.get("status") == 404:
+                # 任意错误状态都丢弃缓存 session，避免持续命中失效会话。
+                if int(message.get("status") or 0) >= 400:
                     middleware_self._session_id = None
             await send(message)
 

@@ -19,13 +19,22 @@ from .sync import idaread
 from .utils import parse_address, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import idautils  # type: ignore
-import ida_funcs  # type: ignore
-import ida_bytes  # type: ignore
-import ida_hexrays  # type: ignore
-import ida_search  # type: ignore
-import ida_gdl  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import idautils  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_bytes  # type: ignore
+    import ida_hexrays  # type: ignore
+    import ida_search  # type: ignore
+    import ida_gdl  # type: ignore
+except ImportError:
+    idaapi = None
+    idautils = None
+    ida_funcs = None
+    ida_bytes = None
+    ida_hexrays = None
+    ida_search = None
+    ida_gdl = None
 
 from . import compat  # IDA 8.x/9.x 兼容层
 

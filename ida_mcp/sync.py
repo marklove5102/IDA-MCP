@@ -14,23 +14,19 @@ import functools
 import inspect
 from typing import Any, Callable, TypeVar
 
-import ida_kernwin  # type: ignore
+try:
+    import ida_kernwin  # type: ignore
+except ImportError:
+    # 允许在非 IDA 环境下导入（如测试），但不能执行装饰后的函数
+    ida_kernwin = None
 
 F = TypeVar('F', bound=Callable[..., Any])
 
 def _run_in_ida(fn: Callable[[], Any], write: bool = False) -> Any:
-    """在 IDA 主线程执行回调并返回结果。
-    
-    参数:
-        fn: 要执行的回调函数
-        write: True 使用 MFF_WRITE, False 使用 MFF_READ
-    
-    返回:
-        回调函数的返回值
-    
-    异常:
-        RuntimeError: 如果回调执行出错
-    """
+    """在 IDA 主线程执行回调并返回结果。"""
+    if ida_kernwin is None:
+        raise RuntimeError("ida_kernwin not available (not running in IDA?)")
+        
     result_box: dict[str, Any] = {}
     
     def wrapper() -> int:

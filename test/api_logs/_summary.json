@@ -1,26 +1,12 @@
 {
-  "generated_at": "2025-12-18T12:12:36.490208",
-  "total_calls": 135,
+  "generated_at": "2026-03-12T00:47:59.716307",
+  "total_calls": 1,
   "stats_by_transport": {
     "stdio": {
-      "core": 5
-    },
-    "http": {
-      "analysis": 28,
-      "memory": 18,
-      "core": 31,
-      "modify": 21,
-      "stack": 10,
-      "types": 22
+      "core": 1
     }
   },
   "files": [
-    "http_analysis.json",
-    "http_core.json",
-    "http_memory.json",
-    "http_modify.json",
-    "http_stack.json",
-    "http_types.json",
     "http_uri.json",
     "stdio_core.json",
     "stdio_uri.json"

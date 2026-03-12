@@ -25,9 +25,14 @@ from .sync import idaread, idawrite
 from .utils import parse_address, normalize_list_input, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import ida_funcs  # type: ignore
-import ida_dbg  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_dbg  # type: ignore
+except ImportError:
+    idaapi = None
+    ida_funcs = None
+    ida_dbg = None
 
 def _wait_for_debugger_event(timeout_ms: int = 1000) -> bool:
     """等待调试器事件并处理。返回调试器是否处于暂停状态。"""

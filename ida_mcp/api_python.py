@@ -15,21 +15,38 @@ from .rpc import tool, unsafe
 from .sync import idaread
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import idc  # type: ignore
-import ida_bytes  # type: ignore
-import ida_funcs  # type: ignore
-import ida_hexrays  # type: ignore
-import ida_kernwin  # type: ignore
-import ida_nalt  # type: ignore
-import ida_name  # type: ignore
-import ida_segment  # type: ignore
-import ida_typeinf  # type: ignore
-import ida_xref  # type: ignore
-import ida_entry  # type: ignore
-import ida_frame  # type: ignore
-import ida_lines  # type: ignore
-import ida_ida  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import idc  # type: ignore
+    import ida_bytes  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_hexrays  # type: ignore
+    import ida_kernwin  # type: ignore
+    import ida_nalt  # type: ignore
+    import ida_name  # type: ignore
+    import ida_segment  # type: ignore
+    import ida_typeinf  # type: ignore
+    import ida_xref  # type: ignore
+    import ida_entry  # type: ignore
+    import ida_frame  # type: ignore
+    import ida_lines  # type: ignore
+    import ida_ida  # type: ignore
+except ImportError:
+    idaapi = None
+    idc = None
+    ida_bytes = None
+    ida_funcs = None
+    ida_hexrays = None
+    ida_kernwin = None
+    ida_nalt = None
+    ida_name = None
+    ida_segment = None
+    ida_typeinf = None
+    ida_xref = None
+    ida_entry = None
+    ida_frame = None
+    ida_lines = None
+    ida_ida = None
 
 
 def _lazy_import(module_name: str):

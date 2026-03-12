@@ -17,11 +17,22 @@ from .sync import idaread, idawrite
 from .utils import parse_address, is_valid_c_identifier, normalize_list_input, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import ida_funcs  # type: ignore
-import ida_hexrays  # type: ignore
-import ida_bytes  # type: ignore
-import ida_kernwin  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import ida_bytes  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_name  # type: ignore
+    import ida_hexrays  # type: ignore
+    import ida_kernwin  # type: ignore
+    import idc  # type: ignore
+except ImportError:
+    idaapi = None
+    ida_bytes = None
+    ida_funcs = None
+    ida_name = None
+    ida_hexrays = None
+    ida_kernwin = None
+    idc = None
 from contextlib import contextmanager
 
 @contextmanager
@@ -91,12 +102,12 @@ def set_comment(
 @tool
 @idawrite
 def rename_function(
-    function_address: Annotated[Union[int, str], "Function name or address (hex/decimal)"],
+    address: Annotated[Union[int, str], "Function name or address (hex/decimal)"],
     new_name: Annotated[str, "New function name (valid C identifier)"],
 ) -> dict:
     """Rename function. Accepts function name or address."""
-    if function_address is None:
-        return {"error": "invalid function_address"}
+    if address is None:
+        return {"error": "invalid address"}
     if not new_name:
         return {"error": "empty new_name"}
     
@@ -113,9 +124,9 @@ def rename_function(
         addr = None
         
         # 方法 1: 尝试作为函数名查找
-        if isinstance(function_address, str):
+        if isinstance(address, str):
             try:
-                ea = idaapi.get_name_ea(idaapi.BADADDR, function_address)
+                ea = idaapi.get_name_ea(idaapi.BADADDR, address)
                 if ea != idaapi.BADADDR:
                     f = ida_funcs.get_func(ea)
                     if f:
@@ -125,7 +136,7 @@ def rename_function(
         
         # 方法 2: 尝试作为地址解析
         if not f:
-            parsed = parse_address(str(function_address))
+            parsed = parse_address(str(address))
             if parsed["ok"] and parsed["value"] is not None:
                 addr = parsed["value"]
                 try:
@@ -136,7 +147,7 @@ def rename_function(
         if not f:
             return {
                 "error": "function not found",
-                "query": str(function_address),
+                "query": str(address),
                 "parsed_addr": hex_addr(addr) if addr is not None else None,
             }
         
@@ -425,4 +436,3 @@ def patch_bytes(
         results.append(result)
     
     return results
-

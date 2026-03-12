@@ -60,6 +60,7 @@ import threading
 import json
 import time
 import socket
+import socketserver
 import http.server
 import urllib.request
 import urllib.error
@@ -67,7 +68,10 @@ from typing import List, Dict, Any, Optional
 import os
 import atexit
 import sys
-import ida_kernwin  # type: ignore
+try:
+    import ida_kernwin  # type: ignore
+except ImportError:
+    ida_kernwin = None
 
 # 所有内部组件（协调器、IDA 实例）固定使用 127.0.0.1
 # 外部访问统一通过 HTTP 代理 (11338)
@@ -120,7 +124,7 @@ def _debug_log(event: str, **fields: Any):  # pragma: no cover
     kv = ' '.join(f"{k}={_short(v)}" for k, v in fields.items())
     line = f"[{ts}] [registry] {event} {kv}\n"
     try:
-        if hasattr(ida_kernwin, 'execute_sync') and hasattr(ida_kernwin, 'msg'):
+        if ida_kernwin and hasattr(ida_kernwin, 'execute_sync') and hasattr(ida_kernwin, 'msg'):
             def _emit():  # type: ignore
                 try:
                     ida_kernwin.msg(line)  # type: ignore
@@ -377,13 +381,17 @@ class _Handler(http.server.BaseHTTPRequestHandler):  # pragma: no cover
         else:
             self._send(404, {"error": "not found"})
 
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+
 def _start_coordinator():  # pragma: no cover
     global _server_thread
     if _server_thread and _server_thread.is_alive():
         return
     def run():
         try:
-            httpd = http.server.HTTPServer((COORD_HOST, COORD_PORT), _Handler)
+            # Use ThreadingHTTPServer to handle concurrent requests to different instances
+            httpd = ThreadingHTTPServer((COORD_HOST, COORD_PORT), _Handler)
             httpd.serve_forever()
         except Exception:
             pass

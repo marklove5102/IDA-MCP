@@ -16,22 +16,50 @@
 """
 from __future__ import annotations
 
+import json
 from typing import Optional, List, Dict, Any
 import re
 
-from .rpc import resource
+from .rpc import resource, tool
 from .sync import idaread
 from .utils import hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import idautils  # type: ignore
-import ida_funcs  # type: ignore
-import ida_segment  # type: ignore
-import ida_bytes  # type: ignore
-import ida_typeinf  # type: ignore
-import ida_nalt  # type: ignore
-import ida_entry  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import idautils  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_bytes  # type: ignore
+    import ida_name  # type: ignore
+except ImportError:
+    idaapi = None
+    idautils = None
+    ida_funcs = None
+    ida_bytes = None
+    ida_name = None
+    ida_typeinf = None
+    ida_nalt = None
+
+try:
+    import ida_typeinf  # type: ignore
+    import ida_nalt  # type: ignore
+except ImportError:
+    pass
+
+try:
+    import ida_entry  # type: ignore
+except ImportError:
+    pass
+
+try:
+    import ida_segment  # type: ignore
+except ImportError:
+    ida_segment = None
+
+
+def _json_resource(data: Any) -> str:
+    """将资源结果统一编码为 JSON 文本，满足 FastMCP Resource 返回约束。"""
+    return json.dumps(data, ensure_ascii=False, default=str)
 
 
 # ============================================================================
@@ -43,7 +71,7 @@ import ida_entry  # type: ignore
 def idb_metadata_resource() -> dict:
     """IDB file info via ida://idb/metadata URI."""
     from .api_core import get_metadata
-    return get_metadata.__wrapped__()
+    return _json_resource(get_metadata.__wrapped__())
 
 
 # ============================================================================
@@ -54,14 +82,14 @@ def idb_metadata_resource() -> dict:
 @idaread
 def functions_resource() -> list:
     """All functions via ida://functions URI."""
-    return _list_functions_internal(None)
+    return _json_resource(_list_functions_internal(None))
 
 
 @resource(uri="ida://functions/{pattern}")
 @idaread
 def functions_pattern_resource(pattern: str = "*") -> list:
     """Functions matching pattern via ida://functions/{pattern} URI."""
-    return _list_functions_internal(pattern)
+    return _json_resource(_list_functions_internal(pattern))
 
 
 def _list_functions_internal(pattern: Optional[str]) -> list:
@@ -100,7 +128,7 @@ def function_detail_resource(addr: str) -> dict:
     
     parsed = parse_address(addr)
     if not parsed["ok"] or parsed["value"] is None:
-        return {"error": "invalid address"}
+        return _json_resource({"error": "invalid address"})
     
     try:
         f = ida_funcs.get_func(parsed["value"])
@@ -108,16 +136,16 @@ def function_detail_resource(addr: str) -> dict:
         f = None
     
     if not f:
-        return {"error": "function not found"}
+        return _json_resource({"error": "function not found"})
     
     name = idaapi.get_func_name(f.start_ea)
     
-    return {
+    return _json_resource({
         "name": name,
         "start_ea": hex_addr(f.start_ea),
         "end_ea": hex_addr(f.end_ea),
         "size": hex_addr(int(f.end_ea) - int(f.start_ea)),
-    }
+    })
 
 
 # ============================================================================
@@ -128,14 +156,14 @@ def function_detail_resource(addr: str) -> dict:
 @idaread
 def strings_resource() -> list:
     """All strings via ida://strings URI."""
-    return _list_strings_internal(None)
+    return _json_resource(_list_strings_internal(None))
 
 
 @resource(uri="ida://strings/{pattern}")
 @idaread
 def strings_pattern_resource(pattern: str = "*") -> list:
     """Strings matching pattern via ida://strings/{pattern} URI."""
-    return _list_strings_internal(pattern)
+    return _json_resource(_list_strings_internal(pattern))
 
 
 def _list_strings_internal(pattern: Optional[str]) -> list:
@@ -168,14 +196,14 @@ def _list_strings_internal(pattern: Optional[str]) -> list:
 @idaread
 def globals_resource() -> list:
     """All global symbols via ida://globals URI."""
-    return _list_globals_internal(None)
+    return _json_resource(_list_globals_internal(None))
 
 
 @resource(uri="ida://globals/{pattern}")
 @idaread
 def globals_pattern_resource(pattern: str = "*") -> list:
     """Global symbols matching pattern via ida://globals/{pattern} URI."""
-    return _list_globals_internal(pattern)
+    return _json_resource(_list_globals_internal(pattern))
 
 
 def _list_globals_internal(pattern: Optional[str]) -> list:
@@ -222,14 +250,14 @@ def _list_globals_internal(pattern: Optional[str]) -> list:
 @idaread
 def types_resource() -> list:
     """All local types via ida://types URI."""
-    return _list_types_internal(None)
+    return _json_resource(_list_types_internal(None))
 
 
 @resource(uri="ida://types/{pattern}")
 @idaread
 def types_pattern_resource(pattern: str = "*") -> list:
     """Local types matching pattern via ida://types/{pattern} URI."""
-    return _list_types_internal(pattern)
+    return _json_resource(_list_types_internal(pattern))
 
 
 def _list_types_internal(pattern: Optional[str]) -> list:
@@ -289,6 +317,9 @@ def segments_resource() -> list:
     segments: List[dict] = []
     
     try:
+        if ida_segment is None:
+            return _json_resource(segments)
+
         for i in range(ida_segment.get_segm_qty()):
             seg = ida_segment.getnseg(i)
             if not seg:
@@ -312,7 +343,7 @@ def segments_resource() -> list:
     except Exception:
         pass
     
-    return segments
+    return _json_resource(segments)
 
 
 # ============================================================================
@@ -344,7 +375,7 @@ def imports_resource() -> list:
     except Exception:
         pass
     
-    return imports
+    return _json_resource(imports)
 
 
 # ============================================================================
@@ -389,7 +420,7 @@ def exports_resource() -> list:
     except Exception:
         pass
     
-    return exports
+    return _json_resource(exports)
 
 
 # ============================================================================
@@ -404,7 +435,7 @@ def xrefs_to_resource(addr: str) -> dict:
     
     parsed = parse_address(addr)
     if not parsed["ok"] or parsed["value"] is None:
-        return {"error": "invalid address"}
+        return _json_resource({"error": "invalid address"})
     
     address = parsed["value"]
     xrefs: List[dict] = []
@@ -426,11 +457,11 @@ def xrefs_to_resource(addr: str) -> dict:
     except Exception:
         pass
     
-    return {
+    return _json_resource({
         "address": hex_addr(address),
         "total": len(xrefs),
         "xrefs": xrefs,
-    }
+    })
 
 
 @resource(uri="ida://xrefs/from/{addr}")
@@ -441,7 +472,7 @@ def xrefs_from_resource(addr: str) -> dict:
     
     parsed = parse_address(addr)
     if not parsed["ok"] or parsed["value"] is None:
-        return {"error": "invalid address"}
+        return _json_resource({"error": "invalid address"})
     
     address = parsed["value"]
     xrefs: List[dict] = []
@@ -463,11 +494,11 @@ def xrefs_from_resource(addr: str) -> dict:
     except Exception:
         pass
     
-    return {
+    return _json_resource({
         "address": hex_addr(address),
         "total": len(xrefs),
         "xrefs": xrefs,
-    }
+    })
 
 
 # ============================================================================
@@ -482,7 +513,7 @@ def memory_resource(addr: str, size: int = 16) -> dict:
     
     parsed = parse_address(addr)
     if not parsed["ok"] or parsed["value"] is None:
-        return {"error": "invalid address"}
+        return _json_resource({"error": "invalid address"})
     
     address = parsed["value"]
     
@@ -494,16 +525,16 @@ def memory_resource(addr: str, size: int = 16) -> dict:
     try:
         data = idaapi.get_bytes(address, size)
         if data is None:
-            return {"error": "failed to read", "address": hex_addr(address)}
+            return _json_resource({"error": "failed to read", "address": hex_addr(address)})
         
         byte_list = list(data)
         hex_str = ' '.join(f'{b:02X}' for b in byte_list)
         
-        return {
+        return _json_resource({
             "address": hex_addr(address),
             "size": len(byte_list),
             "bytes": byte_list,
             "hex": hex_str,
-        }
+        })
     except Exception as e:
-        return {"error": str(e), "address": hex_addr(address)}
+        return _json_resource({"error": str(e), "address": hex_addr(address)})

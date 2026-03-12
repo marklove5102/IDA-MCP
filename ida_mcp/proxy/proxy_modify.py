@@ -38,7 +38,7 @@ def register_tools(server: Any) -> None:
     ) -> Any:
         """重命名函数。"""
         return forward("rename_function", {
-            "function_address": address,
+            "address": address,
             "new_name": new_name
         }, port, timeout=timeout)
     

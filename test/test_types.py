@@ -20,12 +20,34 @@ Proxy 参数对应：
 """
 import pytest
 
+from ida_mcp import api_types
+
 pytestmark = pytest.mark.types
 
 
 class TestDeclareType:
     """声明类型测试。"""
-    
+
+    def test_declare_type_uses_python_parser_only(self, monkeypatch):
+        """默认应只走 IDAPython parse_decls 路径。"""
+        calls = {"python": 0, "fallback": 0}
+
+        def fake_python(decls, hti_flags):
+            calls["python"] += 1
+            return (0, [])
+
+        def fake_fallback(decl_text):
+            calls["fallback"] += 1
+            return {"ok": True}
+
+        monkeypatch.setattr(api_types, "_parse_decls_python", fake_python)
+        monkeypatch.setattr(api_types, "_declare_type_fallback", fake_fallback)
+
+        result = api_types.declare_type.__wrapped__("typedef int SafeType;")
+
+        assert result.get("ok") is True
+        assert calls == {"python": 1, "fallback": 0}
+
     def test_declare_struct(self, tool_caller):
         """测试声明结构体。"""
         # API 参数名为 decl
@@ -191,7 +213,68 @@ class TestSetGlobalVariableType:
 
 class TestListStructs:
     """结构体列表测试。"""
-    
+
+    def test_list_structs_uses_bounded_ordinal_scan(self, monkeypatch):
+        """默认应按 ordinal 数量遍历，而不是扫描 ordinal limit。"""
+        class FakeUdt(list):
+            def size(self):
+                return len(self)
+
+        class FakeTinfo:
+            def __init__(self):
+                self.ordinal = None
+
+            def is_struct(self):
+                return self.ordinal == 2
+
+            def is_union(self):
+                return self.ordinal == 3
+
+            def get_udt_details(self, udt):
+                if self.ordinal == 2:
+                    udt.extend([object(), object()])
+                    return True
+                if self.ordinal == 3:
+                    udt.append(object())
+                    return True
+                return False
+
+            def get_size(self):
+                return {2: 8, 3: 4}.get(self.ordinal, 0)
+
+        class FakeTypeInf:
+            def get_ordinal_qty(self):
+                return 3
+
+            def get_ordinal_limit(self):
+                raise AssertionError("list_structs should not use get_ordinal_limit")
+
+            def get_numbered_type_name(self, til, ordinal):
+                return {1: "AliasType", 2: "TestStruct", 3: "TestUnion"}.get(ordinal)
+
+            def tinfo_t(self):
+                return FakeTinfo()
+
+            def get_numbered_type(self, til, ordinal, tif):
+                tif.ordinal = ordinal
+
+            def udt_type_data_t(self):
+                return FakeUdt()
+
+        fake_typeinf = FakeTypeInf()
+        fake_idaapi = type("FakeIdaApi", (), {"cvar": type("CVar", (), {"idati": object()})()})()
+
+        monkeypatch.setattr(api_types, "ida_typeinf", fake_typeinf)
+        monkeypatch.setattr(api_types, "idaapi", fake_idaapi)
+
+        result = api_types.list_structs.__wrapped__()
+
+        assert result["total"] == 2
+        assert result["items"] == [
+            {"ordinal": 2, "name": "TestStruct", "kind": "struct", "size": 8, "members": 2},
+            {"ordinal": 3, "name": "TestUnion", "kind": "union", "size": 4, "members": 1},
+        ]
+
     def test_list_structs(self, tool_caller):
         """测试列出结构体。"""
         result = tool_caller("list_structs")

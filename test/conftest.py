@@ -87,8 +87,10 @@ _API_CATEGORIES = {
     "list_exports": "core",
     "list_segments": "core",
     "get_cursor": "core",
+    "close_ida": "lifecycle",
+    "open_in_ida": "lifecycle",
     
-    # Analysis
+    # MemoryAnalysis
     "decompile": "analysis",
     "disasm": "analysis",
     "linear_disassemble": "analysis",
@@ -143,6 +145,11 @@ _API_CATEGORIES = {
     "dbg_write_mem": "debug",
 }
 
+# 这些工具只在 proxy 暴露，不应通过 coordinator /call 转发到某个现有实例。
+_PROXY_ONLY_TOOLS = {
+    "open_in_ida",
+}
+
 
 def _get_api_category(tool_name: str) -> str:
     """获取 API 分类。"""
@@ -181,13 +188,13 @@ def _save_api_log() -> None:
         total_calls += len(calls)
         stats_by_transport[transport] = {}
     
-    # 按分类组织
-    categorized: Dict[str, List[Dict[str, Any]]] = {}
+        # 按分类组织
+        categorized: Dict[str, List[Dict[str, Any]]] = {}
         for call in calls:
-        category = call.get("category", "other")
-        if category not in categorized:
-            categorized[category] = []
-        categorized[category].append(call)
+            category = call.get("category", "other")
+            if category not in categorized:
+                categorized[category] = []
+            categorized[category].append(call)
     
         # 保存各分类文件
         for category, cat_calls in categorized.items():
@@ -196,14 +203,14 @@ def _save_api_log() -> None:
             log_file = os.path.join(_LOG_DIR, filename)
             
             try:
-            with open(log_file, "w", encoding="utf-8") as f:
-                json.dump({
+                with open(log_file, "w", encoding="utf-8") as f:
+                    json.dump({
                         "transport": transport,
-                    "category": category,
-                    "generated_at": datetime.now().isoformat(),
+                        "category": category,
+                        "generated_at": datetime.now().isoformat(),
                         "total_calls": len(cat_calls),
                         "calls": cat_calls,
-                }, f, indent=2, ensure_ascii=False, default=str)
+                    }, f, indent=2, ensure_ascii=False, default=str)
                 
                 all_files.append(filename)
                 stats_by_transport[transport][category] = len(cat_calls)
@@ -280,6 +287,16 @@ def http_post(url: str, data: dict, timeout: float = 10.0) -> Any:
 
 def call_tool_stdio(tool_name: str, params: dict, port: Optional[int] = None) -> Any:
     """通过 coordinator 调用 IDA 工具 (stdio 模式)。"""
+    if tool_name in _PROXY_ONLY_TOOLS:
+        if not _is_http_proxy_available():
+            data = {"error": f"HTTP proxy not available for proxy-only tool: {tool_name}"}
+            _log_api_call("stdio", tool_name, params, port, data, 0.0)
+            return data
+        # lifecycle 的 open_in_ida 是 proxy-side tool；测试中的“stdio”路径没有单独
+        # 启动 stdio proxy 进程，因此这里直接复用 HTTP proxy，避免错误地打到
+        # coordinator /call -> existing instance 这条链路。
+        return call_tool_http(tool_name, params, None)
+
     import time
     start_time = time.perf_counter()
     
@@ -342,9 +359,21 @@ def call_tool_http(tool_name: str, params: dict, port: Optional[int] = None) -> 
                     data = resp.data
                 
                 return data
-        
-        # 运行异步调用
-        data = asyncio.run(_call())
+
+        data = None
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                data = asyncio.run(_call())
+                last_error = None
+                break
+            except Exception as e:
+                last_error = e
+                if "Session terminated" not in str(e) or attempt == 1:
+                    raise
+                time.sleep(0.2)
+        if last_error is not None and data is None:
+            raise last_error
         
     except Exception as e:
         data = {"error": str(e)}
@@ -452,7 +481,7 @@ def tool_caller(request, instance_port):
         def caller(tool_name: str, params: Optional[dict] = None) -> Any:
             return call_tool_http(tool_name, params or {}, instance_port)
     else:
-    def caller(tool_name: str, params: Optional[dict] = None) -> Any:
+        def caller(tool_name: str, params: Optional[dict] = None) -> Any:
             return call_tool_stdio(tool_name, params or {}, instance_port)
     
     return caller

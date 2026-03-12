@@ -1,238 +1,217 @@
 {
   "transport": "stdio",
   "category": "types",
-  "generated_at": "2025-12-18T11:52:35.109445",
+  "generated_at": "2026-03-11T23:56:51.111064",
   "total_calls": 22,
   "calls": [
     {
-      "timestamp": "2025-12-18T11:52:20.625637",
+      "timestamp": "2026-03-11T23:56:12.636358",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "struct TestStruct { int field1; char field2; };"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "struct TestStruct { int field1; char field2; };",
         "ok": true,
-        "messages": [
-          "// struct tag: 'TestStruct'\n",
-          "// struct\n// {\n//   int field1;\n//   char field2;\n// }\n\n",
-          "// struct tag: 'TestStruct'\n",
-          "// struct TestStruct\n\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 749.81
+      "duration_ms": 1689.31
     },
     {
-      "timestamp": "2025-12-18T11:52:21.277901",
+      "timestamp": "2026-03-11T23:56:14.205919",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "typedef unsigned int UINT32;"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "typedef unsigned int UINT32;",
         "ok": true,
-        "messages": [
-          "// typedef: UINT32 = ",
-          "// unsigned int\n\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 651.51
+      "duration_ms": 1566.97
     },
     {
-      "timestamp": "2025-12-18T11:52:21.938806",
+      "timestamp": "2026-03-11T23:56:15.999065",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "enum TestEnum { VALUE_A = 0, VALUE_B = 1, VALUE_C = 2 };"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "enum TestEnum { VALUE_A = 0, VALUE_B = 1, VALUE_C = 2 };",
         "ok": true,
-        "messages": [
-          "// struct tag: 'TestEnum'\n",
-          "// enum\n// {\n//   VALUE_A = 0x0,\n//   VALUE_B = 0x1,\n//   VALUE_C = 0x2,\n// }\n\n",
-          "// struct tag: 'TestEnum'\n",
-          "// enum TestEnum\n\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 657.16
+      "duration_ms": 1790.99
     },
     {
-      "timestamp": "2025-12-18T11:52:22.615080",
+      "timestamp": "2026-03-11T23:56:17.639583",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "\n                struct ComplexStruct {\n                    int id;\n                    char name[32];\n                    struct {\n                        int x;\n                        int y;\n                    } position;\n                    void* data;\n                };\n            "
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "struct ComplexStruct {\n                    int id;\n                    char name[32];\n                    struct {\n                        int x;\n                        int y;\n                    } position;\n                    void* data;\n                };",
         "ok": true,
-        "messages": [
-          "// struct tag: 'ComplexStruct::$CDF557A927ED2BFF93B09908D4EFCA76'\n",
-          "// struct\n// {\n//   int x;\n//   int y;\n// }\n\n",
-          "// struct tag: 'ComplexStruct'\n",
-          "// struct\n// {\n//   int id;\n//   char name[32];\n//   struct ComplexStruct::$CDF557A927ED2BFF93B09908D4EFCA76 position;\n//   void *data;\n// }\n\n",
-          "// struct tag: 'ComplexStruct'\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 683.88
+      "duration_ms": 1638.63
     },
     {
-      "timestamp": "2025-12-18T11:52:23.269424",
+      "timestamp": "2026-03-11T23:56:19.503191",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "invalid syntax here {"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "parse failed (1 errors)",
-        "details": [
-          "Syntax error near: invalid\n"
-        ]
+        "details": []
       },
-      "duration_ms": 645.35
+      "duration_ms": 1861.2
     },
     {
-      "timestamp": "2025-12-18T11:52:23.964154",
+      "timestamp": "2026-03-11T23:56:21.145061",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": ""
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "empty declaration"
       },
-      "duration_ms": 691.9
+      "duration_ms": 1639.2
     },
     {
-      "timestamp": "2025-12-18T11:52:24.605989",
+      "timestamp": "2026-03-11T23:56:24.373854",
       "transport": "stdio",
       "category": "types",
       "tool": "set_function_prototype",
       "params": {
-        "function_address": 4198140,
+        "function_address": "0x140001000",
         "prototype": "int __cdecl func(int a, int b)"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "parse failed or not a function type",
         "details": []
       },
-      "duration_ms": 639.49
+      "duration_ms": 1603.79
     },
     {
-      "timestamp": "2025-12-18T11:52:25.264282",
+      "timestamp": "2026-03-11T23:56:25.955279",
       "transport": "stdio",
       "category": "types",
       "tool": "set_function_prototype",
       "params": {
-        "function_address": 3735928559,
+        "function_address": "0xdeadbeef",
         "prototype": "int func(void)"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "function not found"
       },
-      "duration_ms": 655.32
+      "duration_ms": 1579.54
     },
     {
-      "timestamp": "2025-12-18T11:52:25.982528",
+      "timestamp": "2026-03-11T23:56:27.567475",
       "transport": "stdio",
       "category": "types",
       "tool": "set_function_prototype",
       "params": {
-        "function_address": 4198140,
+        "function_address": "0x140001000",
         "prototype": ""
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "empty prototype"
       },
-      "duration_ms": 715.55
+      "duration_ms": 1609.46
     },
     {
-      "timestamp": "2025-12-18T11:52:26.708294",
+      "timestamp": "2026-03-11T23:56:29.273201",
       "transport": "stdio",
       "category": "types",
       "tool": "set_function_prototype",
       "params": {
-        "function_address": 4198140,
+        "function_address": "0x140001000",
         "prototype": "invalid prototype syntax"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "parse failed or not a function type",
         "details": []
       },
-      "duration_ms": 726.09
+      "duration_ms": 1703.31
     },
     {
-      "timestamp": "2025-12-18T11:52:27.446649",
+      "timestamp": "2026-03-11T23:56:31.093128",
       "transport": "stdio",
       "category": "types",
       "tool": "set_local_variable_type",
       "params": {
-        "function_address": 4198140,
+        "function_address": "0x140001000",
         "variable_name": "v1",
         "new_type": "int"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "local variable not found"
       },
-      "duration_ms": 730.36
+      "duration_ms": 1818.83
     },
     {
-      "timestamp": "2025-12-18T11:52:28.075154",
+      "timestamp": "2026-03-11T23:56:32.698948",
       "transport": "stdio",
       "category": "types",
       "tool": "set_local_variable_type",
       "params": {
-        "function_address": 4198140,
+        "function_address": "0x140001000",
         "variable_name": "v1",
         "new_type": "char*"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "local variable not found"
       },
-      "duration_ms": 639.23
+      "duration_ms": 1602.28
     },
     {
-      "timestamp": "2025-12-18T11:52:28.717760",
+      "timestamp": "2026-03-11T23:56:35.930595",
       "transport": "stdio",
       "category": "types",
       "tool": "set_global_variable_type",
       "params": {
-        "variable_name": "aLibLdMuslMipse",
+        "variable_name": "def_1400014D3",
         "new_type": "int"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
-        "ea": "0x400174",
-        "variable_name": "aLibLdMuslMipse",
+        "ea": "0x140001529",
+        "variable_name": "def_1400014D3",
         "old_type": null,
-        "new_type": "int",
-        "applied": true
+        "new_type": null,
+        "applied": false
       },
-      "duration_ms": 634.26
+      "duration_ms": 1593.09
     },
     {
-      "timestamp": "2025-12-18T11:52:29.343520",
+      "timestamp": "2026-03-11T23:56:37.610948",
       "transport": "stdio",
       "category": "types",
       "tool": "set_global_variable_type",
@@ -240,200 +219,104 @@
         "variable_name": "nonexistent_global_xyz123",
         "new_type": "int"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "global not found"
       },
-      "duration_ms": 630.71
+      "duration_ms": 1678.12
     },
     {
-      "timestamp": "2025-12-18T11:52:30.002204",
+      "timestamp": "2026-03-11T23:56:39.204627",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "struct TestGlobalType { int a; int b; };"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "struct TestGlobalType { int a; int b; };",
         "ok": true,
-        "messages": [
-          "// struct tag: 'TestGlobalType'\n",
-          "// struct\n// {\n//   int a;\n//   int b;\n// }\n\n",
-          "// struct tag: 'TestGlobalType'\n",
-          "// struct TestGlobalType\n\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 643.84
+      "duration_ms": 1591.0
     },
     {
-      "timestamp": "2025-12-18T11:52:30.642595",
+      "timestamp": "2026-03-11T23:56:40.786339",
       "transport": "stdio",
       "category": "types",
       "tool": "set_global_variable_type",
       "params": {
-        "variable_name": "aLibLdMuslMipse",
+        "variable_name": "def_1400014D3",
         "new_type": "struct TestGlobalType"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
-        "ea": "0x400174",
-        "variable_name": "aLibLdMuslMipse",
-        "old_type": "int",
-        "new_type": "struct TestGlobalType",
-        "applied": true
+        "ea": "0x140001529",
+        "variable_name": "def_1400014D3",
+        "old_type": null,
+        "new_type": null,
+        "applied": false
       },
-      "duration_ms": 641.16
+      "duration_ms": 1581.4
     },
     {
-      "timestamp": "2025-12-18T11:52:31.281973",
+      "timestamp": "2026-03-11T23:56:42.344193",
       "transport": "stdio",
       "category": "types",
       "tool": "list_structs",
       "params": {},
-      "port": 10001,
+      "port": 10000,
       "result": {
-        "total": 10,
-        "items": [
-          {
-            "ordinal": 1,
-            "name": "Elf32_Sym",
-            "kind": "struct",
-            "size": 16,
-            "members": 6
-          },
-          {
-            "ordinal": 2,
-            "name": "Elf32_Rel",
-            "kind": "struct",
-            "size": 8,
-            "members": 2
-          },
-          {
-            "ordinal": 3,
-            "name": "Elf32_Dyn::$A263394DDF3EC2D4B1B8448EDD30E249",
-            "kind": "union",
-            "size": 4,
-            "members": 2
-          },
-          {
-            "ordinal": 4,
-            "name": "Elf32_Dyn",
-            "kind": "struct",
-            "size": 8,
-            "members": 2
-          },
-          {
-            "ordinal": 5,
-            "name": "Elf32_Verneed",
-            "kind": "struct",
-            "size": 16,
-            "members": 5
-          },
-          {
-            "ordinal": 6,
-            "name": "Elf32_Vernaux",
-            "kind": "struct",
-            "size": 16,
-            "members": 5
-          },
-          {
-            "ordinal": 9,
-            "name": "TestStruct",
-            "kind": "struct",
-            "size": 6,
-            "members": 2
-          },
-          {
-            "ordinal": 12,
-            "name": "ComplexStruct::$CDF557A927ED2BFF93B09908D4EFCA76",
-            "kind": "struct",
-            "size": 8,
-            "members": 2
-          },
-          {
-            "ordinal": 13,
-            "name": "ComplexStruct",
-            "kind": "struct",
-            "size": 48,
-            "members": 4
-          },
-          {
-            "ordinal": 14,
-            "name": "TestGlobalType",
-            "kind": "struct",
-            "size": 8,
-            "members": 2
-          }
-        ]
+        "total": 0,
+        "items": []
       },
-      "duration_ms": 639.97
+      "duration_ms": 1554.26
     },
     {
-      "timestamp": "2025-12-18T11:52:31.930610",
+      "timestamp": "2026-03-11T23:56:44.021636",
       "transport": "stdio",
       "category": "types",
       "tool": "list_structs",
       "params": {
         "pattern": "test"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
-        "total": 2,
-        "items": [
-          {
-            "ordinal": 9,
-            "name": "TestStruct",
-            "kind": "struct",
-            "size": 6,
-            "members": 2
-          },
-          {
-            "ordinal": 14,
-            "name": "TestGlobalType",
-            "kind": "struct",
-            "size": 8,
-            "members": 2
-          }
-        ]
+        "total": 0,
+        "items": []
       },
-      "duration_ms": 645.38
+      "duration_ms": 1675.25
     },
     {
-      "timestamp": "2025-12-18T11:52:32.565467",
+      "timestamp": "2026-03-11T23:56:45.709527",
       "transport": "stdio",
       "category": "types",
       "tool": "declare_type",
       "params": {
         "decl": "struct TestStructInfo { int field1; char field2; void* field3; };"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "decl": "struct TestStructInfo { int field1; char field2; void* field3; };",
         "ok": true,
-        "messages": [
-          "// struct tag: 'TestStructInfo'\n",
-          "// struct\n// {\n//   int field1;\n//   char field2;\n//   void *field3;\n// }\n\n",
-          "// struct tag: 'TestStructInfo'\n",
-          "// struct TestStructInfo\n\n"
-        ]
+        "messages": null
       },
-      "duration_ms": 636.17
+      "duration_ms": 1685.88
     },
     {
-      "timestamp": "2025-12-18T11:52:33.197809",
+      "timestamp": "2026-03-11T23:56:47.529150",
       "transport": "stdio",
       "category": "types",
       "tool": "get_struct_info",
       "params": {
         "name": "TestStructInfo"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "name": "TestStructInfo",
         "kind": "struct",
-        "size": 10,
+        "size": 14,
         "members": [
           {
             "index": 0,
@@ -454,41 +337,41 @@
             "name": "field3",
             "type": "void *",
             "offset": 6,
-            "size": 4
+            "size": 8
           }
         ],
         "member_count": 3
       },
-      "duration_ms": 624.69
+      "duration_ms": 1819.43
     },
     {
-      "timestamp": "2025-12-18T11:52:33.878759",
+      "timestamp": "2026-03-11T23:56:49.159016",
       "transport": "stdio",
       "category": "types",
       "tool": "get_struct_info",
       "params": {
         "name": "__nonexistent_struct_12345__"
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "type not found",
         "name": "__nonexistent_struct_12345__"
       },
-      "duration_ms": 688.75
+      "duration_ms": 1627.4
     },
     {
-      "timestamp": "2025-12-18T11:52:34.648281",
+      "timestamp": "2026-03-11T23:56:50.738956",
       "transport": "stdio",
       "category": "types",
       "tool": "get_struct_info",
       "params": {
         "name": ""
       },
-      "port": 10001,
+      "port": 10000,
       "result": {
         "error": "empty name"
       },
-      "duration_ms": 772.19
+      "duration_ms": 1578.9
     }
   ]
 }

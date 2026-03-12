@@ -199,6 +199,41 @@ def _error(msg: str):
     _log("ERROR", msg)
 
 
+def _prime_path_caches():
+    """在 IDA 主线程捕获输入文件/IDB 路径缓存。"""
+    if idaapi is None:
+        return
+
+    global _cached_input_file, _cached_idb_path
+    if _cached_input_file is not None and (_cached_idb_path is not None or not hasattr(idaapi, 'get_path')):
+        return
+
+    def _capture() -> int:
+        global _cached_input_file, _cached_idb_path
+        if _cached_input_file is None:
+            try:
+                _cached_input_file = getattr(idaapi, 'get_input_file_path', lambda: None)()  # type: ignore
+            except Exception:
+                _cached_input_file = None
+        if _cached_idb_path is None and hasattr(idaapi, 'get_path'):
+            try:
+                _cached_idb_path = idaapi.get_path(idaapi.PATH_TYPE_IDB)  # type: ignore
+            except Exception:
+                _cached_idb_path = None
+        return 0
+
+    try:
+        if ida_kernwin and hasattr(ida_kernwin, 'execute_sync'):
+            ida_kernwin.execute_sync(_capture, ida_kernwin.MFF_READ)  # type: ignore
+        else:
+            _capture()
+    except Exception:
+        try:
+            _capture()
+        except Exception:
+            pass
+
+
 def _find_free_port(preferred: int, host: str = "127.0.0.1", max_scan: int = 50) -> int:
     """端口扫描: 从 preferred 起向上尝试绑定, 返回第一个可用端口;
     若全部失败则返回 preferred (保底)。
@@ -235,13 +270,7 @@ def _register_with_coordinator(port: int):
     if idaapi is None:
         return
     global _cached_input_file, _cached_idb_path
-    if _cached_input_file is None:
-        _cached_input_file = getattr(idaapi, 'get_input_file_path', lambda: None)()  # type: ignore
-    if _cached_idb_path is None and hasattr(idaapi, 'get_path'):
-        try:
-            _cached_idb_path = idaapi.get_path(idaapi.PATH_TYPE_IDB)  # type: ignore
-        except Exception:
-            _cached_idb_path = None
+    _prime_path_caches()
     try:
         registry.init_and_register(port, _cached_input_file, _cached_idb_path)
         _info(f"Registered instance at port={port} pid={os.getpid()} input='{_cached_input_file}' idb='{_cached_idb_path}'")
@@ -316,13 +345,25 @@ class IDAMCPPlugin(idaapi.plugin_t if idaapi else object):  # type: ignore
             _warn("Outside IDA environment; plugin inactive.")
             return idaapi.PLUGIN_SKIP if idaapi else 0
         
-        # 注意: 不再全局设置 idaapi.cvar.batch = 1，
-        # 因为它会禁用所有UI对话框（包括G键跳转、搜索等）。
-        # 写操作时的警告抑制已由 api_modify.py 中的
-        # suppress_ida_warnings() 上下文管理器按需临时处理。
-        
-        # 不自动启动, 等待用户菜单/快捷方式显式触发。
-        _info("Plugin initialized and ready (not auto-starting).")
+        # 检查环境变量是否要求自动启动
+        if os.getenv("IDA_MCP_AUTO_START") == "1":
+            _info("Auto-starting server due to IDA_MCP_AUTO_START=1")
+            # 延迟一小段时间启动，确保 IDA 核心已就绪
+            def _auto():
+                time.sleep(1)
+                if not is_running():
+                    host = os.getenv("IDA_MCP_HOST") or get_ida_host()
+                    env_port = os.getenv("IDA_MCP_PORT")
+                    if env_port and env_port.isdigit():
+                        port = int(env_port)
+                    else:
+                        port = _find_free_port(DEFAULT_PORT, host)
+                    start_server_async(host, port)
+            t = threading.Thread(target=_auto, daemon=True)
+            t.start()
+        else:
+            # 不自动启动, 等待用户菜单/快捷方式显式触发。
+            _info("Plugin initialized and ready (not auto-starting).")
         return idaapi.PLUGIN_KEEP  # type: ignore
 
     def run(self, arg):  # type: ignore
@@ -378,6 +419,8 @@ def start_server_async(host: str, port: int):
     if is_running():
         _info("Server already running; start request ignored.")
         return
+
+    _prime_path_caches()
 
     def worker():
         global _uv_server

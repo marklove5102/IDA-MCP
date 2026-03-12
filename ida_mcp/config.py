@@ -48,6 +48,7 @@ _DEFAULT_CONFIG = {
     
     # IDA 实例配置（地址固定为 127.0.0.1，仅端口可配置）
     "ida_default_port": 10000,
+    "ida_path": None, # IDA 可执行文件路径
     
     # 通用配置
     "request_timeout": 30,
@@ -199,9 +200,56 @@ def get_ida_host() -> str:
 
 
 def get_ida_default_port() -> int:
-    """获取 IDA 实例默认端口起始值。"""
+    """获取 IDA 实例 MCP 端口起始值。"""
     config = load_config()
     return int(config.get("ida_default_port", 10000))
+
+
+import subprocess
+
+def _win_to_wsl_path(path: str) -> str:
+    """Convert Windows path to WSL path if running in WSL."""
+    if not path:
+        return path
+    if not os.path.exists("/proc/version"):
+        return path
+        
+    try:
+        with open("/proc/version", "r") as f:
+            if "microsoft" not in f.read().lower():
+                return path
+    except Exception:
+        return path
+        
+    try:
+        # Convert Windows path to WSL path
+        result = subprocess.check_output(["wslpath", "-u", path], stderr=subprocess.DEVNULL)
+        return result.decode().strip()
+    except Exception:
+        return path
+
+def get_ida_path() -> str | None:
+    """获取 IDA 可执行文件路径。
+    
+    优先级:
+    1. 环境变量 IDA_PATH
+    2. 配置文件中的 ida_path
+    3. None
+    
+    如果在 WSL 环境中，会自动将 Windows 路径转换为 WSL 路径。
+    """
+    path = None
+    env_path = os.getenv("IDA_PATH")
+    if env_path:
+        path = env_path
+    else:
+        config = load_config()
+        path = config.get("ida_path")
+        
+    if path:
+        return _win_to_wsl_path(path)
+    return None
+
 
 
 # ============================================================================

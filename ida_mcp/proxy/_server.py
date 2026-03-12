@@ -41,6 +41,7 @@ import proxy_types  # type: ignore
 import proxy_debug  # type: ignore
 import proxy_python  # type: ignore
 import proxy_stack  # type: ignore
+import proxy_lifecycle  # type: ignore
 
 
 # ============================================================================
@@ -55,6 +56,10 @@ server = FastMCP(
 - check_connection: 检查连接状态
 - list_instances: 列出所有 IDA 实例
 - select_instance: 选择要操作的实例
+
+生命周期工具:
+- open_in_ida: 启动 IDA 并打开指定文件
+- close_ida: 关闭目标 IDA 实例
 
 核心工具:
 - list_functions, get_metadata, list_strings, list_globals, list_local_types, get_entry_points
@@ -136,4 +141,5 @@ proxy_types.register_tools(server)
 proxy_debug.register_tools(server)
 proxy_python.register_tools(server)
 proxy_stack.register_tools(server)
+proxy_lifecycle.register_tools(server)
 

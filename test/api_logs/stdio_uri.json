@@ -1,7 +1,7 @@
 {
   "transport": "stdio",
   "category": "uri_resources",
-  "generated_at": "2025-12-18T11:52:35.382022",
+  "generated_at": "2026-03-12T00:48:00.022004",
   "summary": {
     "total_calls": 18,
     "success": 17,
@@ -13,122 +13,122 @@
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 1979.13
+      "avg_ms": 1719.16
     },
     "ida://idb/metadata": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 550.6
+      "avg_ms": 1608.1
     },
     "ida://functions": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 539.93
+      "avg_ms": 1675.94
     },
     "ida://functions/main*": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 569.72
+      "avg_ms": 1612.17
     },
-    "ida://function/0x400efc": {
+    "ida://function/0x140001000": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 538.07
+      "avg_ms": 1554.58
     },
     "ida://strings": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 568.51
+      "avg_ms": 1646.01
     },
     "ida://strings/hello": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 572.64
+      "avg_ms": 1724.45
     },
     "ida://globals": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 591.0
+      "avg_ms": 1658.41
     },
     "ida://globals/g_*": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 617.17
+      "avg_ms": 1813.45
     },
     "ida://types": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 551.29
+      "avg_ms": 1573.51
     },
     "ida://segments": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 533.33
+      "avg_ms": 1661.72
     },
     "ida://imports": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 549.23
+      "avg_ms": 1627.7
     },
     "ida://exports": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 534.93
+      "avg_ms": 1913.04
     },
-    "ida://xrefs/to/0x400efc": {
+    "ida://xrefs/to/0x140001000": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 553.37
+      "avg_ms": 1856.4
     },
-    "ida://xrefs/from/0x400efc": {
+    "ida://xrefs/from/0x140001000": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 589.34
+      "avg_ms": 1815.32
     },
-    "ida://memory/0x400efc": {
+    "ida://memory/0x140001000": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 545.68
+      "avg_ms": 1611.88
     },
     "ida://nonexistent/invalid": {
       "total": 1,
       "success": 0,
       "failed": 1,
-      "avg_ms": 557.24
+      "avg_ms": 1620.37
     },
     "ida://function/invalid_addr": {
       "total": 1,
       "success": 1,
       "failed": 0,
-      "avg_ms": 573.84
+      "avg_ms": 1820.25
     }
   },
   "calls": [
     {
-      "timestamp": "2025-12-18T11:52:03.225091",
+      "timestamp": "2026-03-12T00:47:28.477973",
       "transport": "stdio",
       "uri": "resources/list",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 3,
-      "duration_ms": 1979.13,
+      "duration_ms": 1719.16,
       "result": {
         "resources": [
           {
@@ -163,385 +163,369 @@
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:03.803914",
+      "timestamp": "2026-03-12T00:47:30.117501",
       "transport": "stdio",
       "uri": "ida://idb/metadata",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 5,
-      "duration_ms": 550.6,
+      "duration_ms": 1608.1,
       "result": {
-        "input_file": "E:\\ttl\\a3300r\\cloudupdate_check",
-        "arch": "mips",
+        "input_file": "E:\\DM\\IDA-MCP\\test\\samples\\simple.exe",
+        "arch": "x86",
         "bits": 32,
         "endian": null,
-        "hash": "730981a2049808c76c81845af949bcb05ea563944c87120f0d32d89031a4ce06"
+        "hash": "81928723eeb4f39ad0f4916c408226cd26b4d48ecf0d8668d8aa6626a0340ae2"
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:04.367253",
+      "timestamp": "2026-03-12T00:47:31.824527",
       "transport": "stdio",
       "uri": "ida://functions",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 153,
-      "duration_ms": 539.93,
+      "result_size": 91,
+      "duration_ms": 1675.94,
       "result": [
         {
-          "name": "test_renamed_400EFC",
-          "start_ea": "0x400EFC",
-          "end_ea": "0x400F48",
-          "size": "0x4C"
+          "name": "WinMainCRTStartup",
+          "start_ea": "0x140001000",
+          "end_ea": "0x14000101E",
+          "size": "0x1E"
         },
         {
-          "name": "main",
-          "start_ea": "0x400F50",
-          "end_ea": "0x401220",
-          "size": "0x2D0"
+          "name": "__tmainCRTStartup",
+          "start_ea": "0x140001020",
+          "end_ea": "0x14000139B",
+          "size": "0x37B"
         },
         {
-          "name": "sub_401234",
-          "start_ea": "0x401234",
-          "end_ea": "0x4012A0",
-          "size": "0x6C"
+          "name": "mainCRTStartup",
+          "start_ea": "0x1400013A0",
+          "end_ea": "0x1400013BE",
+          "size": "0x1E"
         },
         {
-          "name": "sub_4012A0",
-          "start_ea": "0x4012A0",
-          "end_ea": "0x401364",
-          "size": "0xC4"
+          "name": "atexit",
+          "start_ea": "0x1400013C0",
+          "end_ea": "0x1400013C5",
+          "size": "0x5"
         },
         {
-          "name": "sub_401364",
-          "start_ea": "0x401364",
-          "end_ea": "0x40138C",
-          "size": "0x28"
+          "name": "__mingw_invalidParameterHandler",
+          "start_ea": "0x1400013D0",
+          "end_ea": "0x1400013D1",
+          "size": "0x1"
         },
-        "... (148 more items)"
+        "... (86 more items)"
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:04.955308",
+      "timestamp": "2026-03-12T00:47:33.471506",
       "transport": "stdio",
       "uri": "ida://functions/main*",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
       "result_size": 1,
-      "duration_ms": 569.72,
+      "duration_ms": 1612.17,
       "result": [
         {
-          "name": "main",
-          "start_ea": "0x400F50",
-          "end_ea": "0x401220",
-          "size": "0x2D0"
+          "name": "mainCRTStartup",
+          "start_ea": "0x1400013A0",
+          "end_ea": "0x1400013BE",
+          "size": "0x1E"
         }
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:05.512508",
+      "timestamp": "2026-03-12T00:47:36.850090",
       "transport": "stdio",
-      "uri": "ida://function/0x400efc",
-      "port": 10001,
+      "uri": "ida://function/0x140001000",
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 4,
-      "duration_ms": 538.07,
+      "duration_ms": 1554.58,
       "result": {
-        "name": "test_renamed_400EFC",
-        "start_ea": "0x400EFC",
-        "end_ea": "0x400F48",
-        "size": "0x4C"
+        "name": "WinMainCRTStartup",
+        "start_ea": "0x140001000",
+        "end_ea": "0x14000101E",
+        "size": "0x1E"
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:06.117338",
+      "timestamp": "2026-03-12T00:47:38.530254",
       "transport": "stdio",
       "uri": "ida://strings",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 162,
-      "duration_ms": 568.51,
+      "result_size": 71,
+      "duration_ms": 1646.01,
       "result": [
         {
-          "ea": 4194676,
-          "length": 25,
-          "text": "/lib/ld-musl-mipsel.so.1"
+          "ea": 5368721576,
+          "length": 13,
+          "text": "IDA-MCP Test"
         },
         {
-          "ea": 4196729,
+          "ea": 5368721589,
+          "length": 9,
+          "text": "[%s] %s\n"
+        },
+        {
+          "ea": 5368721598,
+          "length": 22,
+          "text": "Starting test program"
+        },
+        {
+          "ea": 5368721620,
+          "length": 14,
+          "text": "10 + 20 = %d\n"
+        },
+        {
+          "ea": 5368721634,
           "length": 12,
-          "text": "libcjson.so"
+          "text": "5 * 6 = %d\n"
         },
-        {
-          "ea": 4196741,
-          "length": 10,
-          "text": "__RLD_MAP"
-        },
-        {
-          "ea": 4196751,
-          "length": 12,
-          "text": "cJSON_Parse"
-        },
-        {
-          "ea": 4196763,
-          "length": 6,
-          "text": "_init"
-        },
-        "... (157 more items)"
+        "... (66 more items)"
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:06.717468",
+      "timestamp": "2026-03-12T00:47:40.290755",
       "transport": "stdio",
       "uri": "ida://strings/hello",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": null,
       "result_size": 0,
-      "duration_ms": 572.64,
+      "duration_ms": 1724.45,
       "result": []
     },
     {
-      "timestamp": "2025-12-18T11:52:07.335923",
+      "timestamp": "2026-03-12T00:47:42.002503",
       "transport": "stdio",
       "uri": "ida://globals",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 198,
-      "duration_ms": 591.0,
+      "result_size": 138,
+      "duration_ms": 1658.41,
       "result": [
         {
-          "name": "aLibLdMuslMipse",
-          "ea": "0x400174",
-          "size": 25
+          "name": "def_1400014D3",
+          "ea": "0x140001529",
+          "size": 8
         },
         {
-          "name": "elf_hash_nbucket",
-          "ea": "0x400300",
-          "size": 4
+          "name": "_gnu_exception_handler",
+          "ea": "0x1400018E0",
+          "size": 1
         },
         {
-          "name": "elf_hash_nchain",
-          "ea": "0x400304",
-          "size": 4
+          "name": "def_140001933",
+          "ea": "0x14000199C",
+          "size": 5
         },
         {
-          "name": "elf_hash_bucket",
-          "ea": "0x400308",
-          "size": 268
+          "name": "def_140001D44",
+          "ea": "0x140001E04",
+          "size": 8
         },
         {
-          "name": "elf_hash_chain",
-          "ea": "0x400414",
-          "size": 276
+          "name": "def_140002282",
+          "ea": "0x1400023E3",
+          "size": 5
         },
-        "... (193 more items)"
+        "... (133 more items)"
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:07.972249",
+      "timestamp": "2026-03-12T00:47:43.852838",
       "transport": "stdio",
       "uri": "ida://globals/g_*",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": null,
       "result_size": 0,
-      "duration_ms": 617.17,
+      "duration_ms": 1813.45,
       "result": []
     },
     {
-      "timestamp": "2025-12-18T11:52:08.547908",
+      "timestamp": "2026-03-12T00:47:45.474972",
       "transport": "stdio",
       "uri": "ida://types",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": null,
       "result_size": 0,
-      "duration_ms": 551.29,
+      "duration_ms": 1573.51,
       "result": []
     },
     {
-      "timestamp": "2025-12-18T11:52:09.107240",
+      "timestamp": "2026-03-12T00:47:47.174320",
       "transport": "stdio",
       "uri": "ida://segments",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 6,
-      "duration_ms": 533.33,
+      "result_size": 8,
+      "duration_ms": 1661.72,
       "result": [
         {
           "index": 0,
-          "name": "LOAD",
-          "start_ea": "0x400000",
-          "end_ea": "0x400190",
-          "size": "0x190",
+          "name": ".text",
+          "start_ea": "0x140001000",
+          "end_ea": "0x140003000",
+          "size": "0x2000",
           "type": 2,
           "perm": 5
         },
         {
           "index": 1,
-          "name": "ABIFLAGS",
-          "start_ea": "0x400190",
-          "end_ea": "0x4001A8",
-          "size": "0x18",
+          "name": ".rdata",
+          "start_ea": "0x140003000",
+          "end_ea": "0x1400038B0",
+          "size": "0x8B0",
           "type": 3,
           "perm": 4
         },
         {
           "index": 2,
-          "name": "REGINFO",
-          "start_ea": "0x4001A8",
-          "end_ea": "0x4001C0",
-          "size": "0x18",
-          "type": 3,
+          "name": ".idata",
+          "start_ea": "0x1400038B0",
+          "end_ea": "0x140003A38",
+          "size": "0x188",
+          "type": 1,
           "perm": 4
         },
         {
           "index": 3,
-          "name": "LOAD",
-          "start_ea": "0x4001C0",
-          "end_ea": "0x4041A4",
-          "size": "0x3FE4",
-          "type": 2,
-          "perm": 5
+          "name": ".rdata",
+          "start_ea": "0x140003A38",
+          "end_ea": "0x140004000",
+          "size": "0x5C8",
+          "type": 3,
+          "perm": 4
         },
         {
           "index": 4,
-          "name": "LOAD",
-          "start_ea": "0x414EEC",
-          "end_ea": "0x4152E0",
-          "size": "0x3F4",
+          "name": ".buildid",
+          "start_ea": "0x140004000",
+          "end_ea": "0x140005000",
+          "size": "0x1000",
           "type": 3,
-          "perm": 6
+          "perm": 4
         },
-        "... (1 more items)"
+        "... (3 more items)"
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:09.666932",
+      "timestamp": "2026-03-12T00:47:48.834685",
       "transport": "stdio",
       "uri": "ida://imports",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 62,
-      "duration_ms": 549.23,
+      "result_size": 40,
+      "duration_ms": 1627.7,
       "result": [
         {
           "module_index": 0,
-          "module_name": ".dynsym",
-          "ea": "0x4152E0",
-          "name": "printf",
+          "module_name": "api-ms-win-crt-private-l1-1-0",
+          "ea": "0x1400038B0",
+          "name": "__C_specific_handler",
           "ordinal": 0
         },
         {
           "module_index": 0,
-          "module_name": ".dynsym",
-          "ea": "0x4152E4",
-          "name": "exit",
+          "module_name": "api-ms-win-crt-private-l1-1-0",
+          "ea": "0x1400038B8",
+          "name": "memcpy",
           "ordinal": 0
         },
         {
-          "module_index": 0,
-          "module_name": ".dynsym",
-          "ea": "0x4152E8",
-          "name": "alarm",
+          "module_index": 1,
+          "module_name": "api-ms-win-crt-stdio-l1-1-0",
+          "ea": "0x1400038C8",
+          "name": "__acrt_iob_func",
           "ordinal": 0
         },
         {
-          "module_index": 0,
-          "module_name": ".dynsym",
-          "ea": "0x4152EC",
-          "name": "inet_addr",
+          "module_index": 1,
+          "module_name": "api-ms-win-crt-stdio-l1-1-0",
+          "ea": "0x1400038D0",
+          "name": "__p__commode",
           "ordinal": 0
         },
         {
-          "module_index": 0,
-          "module_name": ".dynsym",
-          "ea": "0x4152F0",
-          "name": "CsteSystem",
+          "module_index": 1,
+          "module_name": "api-ms-win-crt-stdio-l1-1-0",
+          "ea": "0x1400038D8",
+          "name": "__p__fmode",
           "ordinal": 0
         },
-        "... (57 more items)"
+        "... (35 more items)"
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:10.237490",
+      "timestamp": "2026-03-12T00:47:50.787372",
       "transport": "stdio",
       "uri": "ida://exports",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "list",
-      "result_size": 7,
-      "duration_ms": 534.93,
+      "result_size": 3,
+      "duration_ms": 1913.04,
       "result": [
         {
-          "ordinal": 4207600,
-          "ea": "0x4033F0",
-          "name": ".term_proc"
+          "ordinal": 5368714992,
+          "ea": "0x1400016F0",
+          "name": "TlsCallback_0"
         },
         {
-          "ordinal": 4280060,
-          "ea": "0x414EFC",
-          "name": "stderr"
+          "ordinal": 5368715120,
+          "ea": "0x140001770",
+          "name": "TlsCallback_1"
         },
         {
-          "ordinal": 4280368,
-          "ea": "0x415030",
-          "name": "__stack_chk_guard"
-        },
-        {
-          "ordinal": 4280352,
-          "ea": "0x415020",
-          "name": "UPG_STATUS"
-        },
-        {
-          "ordinal": 4280320,
-          "ea": "0x415000",
-          "name": "__RLD_MAP"
-        },
-        "... (2 more items)"
+          "ordinal": 5368714144,
+          "ea": "0x1400013A0",
+          "name": "mainCRTStartup"
+        }
       ]
     },
     {
-      "timestamp": "2025-12-18T11:52:10.800292",
+      "timestamp": "2026-03-12T00:47:52.685680",
       "transport": "stdio",
-      "uri": "ida://xrefs/to/0x400efc",
-      "port": 10001,
+      "uri": "ida://xrefs/to/0x140001000",
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 3,
-      "duration_ms": 553.37,
+      "duration_ms": 1856.4,
       "result": {
-        "address": "0x400EFC",
-        "total": 2,
+        "address": "0x140001000",
+        "total": 1,
         "xrefs": [
           {
-            "frm": "0x400938",
-            "type": 1,
-            "iscode": false
-          },
-          {
-            "frm": "0x40127C",
+            "frm": "0x140006000",
             "type": 1,
             "iscode": false
           }
@@ -549,21 +533,21 @@
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:11.432072",
+      "timestamp": "2026-03-12T00:47:54.540843",
       "transport": "stdio",
-      "uri": "ida://xrefs/from/0x400efc",
-      "port": 10001,
+      "uri": "ida://xrefs/from/0x140001000",
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 3,
-      "duration_ms": 589.34,
+      "duration_ms": 1815.32,
       "result": {
-        "address": "0x400EFC",
+        "address": "0x140001000",
         "total": 1,
         "xrefs": [
           {
-            "to": "0x400F00",
+            "to": "0x140001004",
             "type": 21,
             "iscode": false
           }
@@ -571,51 +555,51 @@
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:11.990369",
+      "timestamp": "2026-03-12T00:47:56.189084",
       "transport": "stdio",
-      "uri": "ida://memory/0x400efc",
-      "port": 10001,
+      "uri": "ida://memory/0x140001000",
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 4,
-      "duration_ms": 545.68,
+      "duration_ms": 1611.88,
       "result": {
-        "address": "0x400EFC",
+        "address": "0x140001000",
         "size": 16,
         "bytes": [
-          224,
-          255,
-          189,
-          39,
-          24,
+          72,
+          131,
+          236,
+          40,
+          72,
           "... (11 more items)"
         ],
-        "hex": "E0 FF BD 27 18 00 BC AF 1C 00 BF AF 01 00 11 04"
+        "hex": "48 83 EC 28 48 8B 05 15 20 00 00 C7 00 01 00 00"
       }
     },
     {
-      "timestamp": "2025-12-18T11:52:12.583939",
+      "timestamp": "2026-03-12T00:47:57.840975",
       "transport": "stdio",
       "uri": "ida://nonexistent/invalid",
-      "port": 10001,
+      "port": 10000,
       "success": false,
-      "error": "Unknown resource: 'ida://nonexistent/invalid'",
+      "error": "Resource not found: Unknown resource: 'ida://nonexistent/invalid'",
       "result_type": null,
       "result_size": null,
-      "duration_ms": 557.24,
+      "duration_ms": 1620.37,
       "result": null
     },
     {
-      "timestamp": "2025-12-18T11:52:13.156525",
+      "timestamp": "2026-03-12T00:47:59.665520",
       "transport": "stdio",
       "uri": "ida://function/invalid_addr",
-      "port": 10001,
+      "port": 10000,
       "success": true,
       "error": null,
       "result_type": "dict",
       "result_size": 1,
-      "duration_ms": 573.84,
+      "duration_ms": 1820.25,
       "result": {
         "error": "invalid address"
       }

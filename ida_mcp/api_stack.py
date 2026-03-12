@@ -14,11 +14,18 @@ from .sync import idaread, idawrite
 from .utils import parse_address, normalize_list_input, hex_addr
 
 # IDA 模块导入
-import idaapi  # type: ignore
-import ida_funcs  # type: ignore
-import ida_frame  # type: ignore
-import ida_typeinf  # type: ignore
-import ida_hexrays  # type: ignore
+try:
+    import idaapi  # type: ignore
+    import ida_funcs  # type: ignore
+    import ida_frame  # type: ignore
+    import ida_typeinf  # type: ignore
+    import ida_hexrays  # type: ignore
+except ImportError:
+    idaapi = None
+    ida_funcs = None
+    ida_frame = None
+    ida_typeinf = None
+    ida_hexrays = None
 
 from . import compat  # IDA 8.x/9.x 兼容层
 
