@@ -18,7 +18,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .config_store import IdeConfigStore
-from .models import GatewayState, GatewayStatus
+from .models import (
+    GatewayState,
+    GatewayStatus,
+    DEFAULT_GATEWAY_HOST,
+    DEFAULT_GATEWAY_PORT,
+    DEFAULT_GATEWAY_PATH,
+)
 
 
 def _error_status(message: str) -> GatewayStatus:
@@ -27,9 +33,9 @@ def _error_status(message: str) -> GatewayStatus:
         alive=False,
         proxy_alive=False,
         enabled=True,
-        host="127.0.0.1",
-        port=11338,
-        path="/mcp",
+        host=DEFAULT_GATEWAY_HOST,
+        port=DEFAULT_GATEWAY_PORT,
+        path=DEFAULT_GATEWAY_PATH,
         last_error=message,
         raw={"error": message},
     )
@@ -50,9 +56,9 @@ class GatewayController:
 
     def _gateway_params(self) -> tuple[str, int, str]:
         config = self.config_store.load()
-        host = config.gateway_host or "127.0.0.1"
-        port = config.gateway_port or 11338
-        path = config.gateway_path or "/mcp"
+        host = config.gateway_host or DEFAULT_GATEWAY_HOST
+        port = config.gateway_port or DEFAULT_GATEWAY_PORT
+        path = config.gateway_path or DEFAULT_GATEWAY_PATH
         return host, port, path
 
     def _internal_url(self, endpoint: str) -> str:

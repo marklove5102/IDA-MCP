@@ -23,6 +23,18 @@ class GatewayState(str, Enum):
     UNKNOWN = "unknown"
 
 
+# ---------------------------------------------------------------------------
+# Canonical default values — single source of truth
+# ---------------------------------------------------------------------------
+DEFAULT_GATEWAY_HOST = "127.0.0.1"
+DEFAULT_GATEWAY_PORT = 11338
+DEFAULT_GATEWAY_PATH = "/mcp"
+DEFAULT_HTTP_HOST = "0.0.0.0"
+DEFAULT_IDA_HOST = "127.0.0.1"
+DEFAULT_IDA_PORT = 10000
+DEFAULT_SERVER_NAME = "IDA-MCP"
+
+
 def _default_language() -> str:
     preferred = locale.getlocale()[0] or ""
     if preferred.lower().startswith("zh"):
@@ -32,9 +44,9 @@ def _default_language() -> str:
 
 @dataclass(slots=True)
 class IdeConfig:
-    gateway_host: str = "127.0.0.1"
-    gateway_port: int = 11338
-    gateway_path: str = "/mcp"
+    gateway_host: str = DEFAULT_GATEWAY_HOST
+    gateway_port: int = DEFAULT_GATEWAY_PORT
+    gateway_path: str = DEFAULT_GATEWAY_PATH
     request_timeout: int = 30
     auto_start_gateway: bool = False
     python_path: str | None = None
@@ -61,17 +73,17 @@ class IdaMcpConfig:
     enable_http: bool = True
     enable_unsafe: bool = True
     wsl_path_bridge: bool = False
-    http_host: str = "0.0.0.0"
-    http_port: int = 11338
-    http_path: str = "/mcp"
-    ida_default_port: int = 10000
-    ida_host: str = "127.0.0.1"
+    http_host: str = DEFAULT_HTTP_HOST
+    http_port: int = DEFAULT_GATEWAY_PORT
+    http_path: str = DEFAULT_GATEWAY_PATH
+    ida_default_port: int = DEFAULT_IDA_PORT
+    ida_host: str = DEFAULT_IDA_HOST
     ida_path: str | None = None
     ida_python: str | None = None
     open_in_ida_bundle_dir: str | None = None
     open_in_ida_autonomous: bool = True
     auto_start: bool = False
-    server_name: str = "IDA-MCP"
+    server_name: str = DEFAULT_SERVER_NAME
     request_timeout: int = 30
     debug: bool = False
     config_path: str | None = None

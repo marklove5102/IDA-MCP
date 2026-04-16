@@ -6,7 +6,15 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.services.settings_service import SettingsSnapshot
-from supervisor.models import HealthReport, InstallationActionResult, InstallationCheck
+from supervisor.models import (
+    DEFAULT_HTTP_HOST,
+    DEFAULT_IDA_HOST,
+    DEFAULT_GATEWAY_PATH,
+    DEFAULT_SERVER_NAME,
+    HealthReport,
+    InstallationActionResult,
+    InstallationCheck,
+)
 
 
 @dataclass(slots=True)
@@ -87,17 +95,17 @@ def form_state_to_updates(
             "enable_stdio": state.enable_stdio,
             "enable_unsafe": state.enable_unsafe,
             "wsl_path_bridge": state.wsl_path_bridge,
-            "http_host": state.http_host.strip() or "0.0.0.0",
+            "http_host": state.http_host.strip() or DEFAULT_HTTP_HOST,
             "http_port": state.http_port,
-            "http_path": state.http_path.strip() or "/mcp",
+            "http_path": state.http_path.strip() or DEFAULT_GATEWAY_PATH,
             "ida_default_port": state.ida_default_port,
-            "ida_host": state.ida_host.strip() or "127.0.0.1",
+            "ida_host": state.ida_host.strip() or DEFAULT_IDA_HOST,
             "ida_path": _clean_optional(state.ida_path),
             "ida_python": _clean_optional(state.ida_python),
             "open_in_ida_bundle_dir": _clean_optional(state.open_in_ida_bundle_dir),
             "open_in_ida_autonomous": state.open_in_ida_autonomous,
             "auto_start": state.auto_start,
-            "server_name": state.server_name.strip() or "IDA-MCP",
+            "server_name": state.server_name.strip() or DEFAULT_SERVER_NAME,
             "request_timeout": state.ida_request_timeout,
             "debug": state.debug,
         },

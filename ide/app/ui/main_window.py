@@ -35,6 +35,7 @@ from app.presenters.main_window_presenter import (
     TreeRowViewModel,
     build_main_window_view_model,
 )
+from app.services.settings_service import SettingsService
 from app.services.supervisor_client import SupervisorClient
 from supervisor.models import SupervisorSnapshot
 from app.ui.settings import SettingsPage
@@ -42,6 +43,7 @@ from app.ui.theme import Theme
 from app.ui.workspace.directory_tree import DirectoryTreeWidget
 from app.ui.workspace.hex_view import HexViewWidget
 from app.ui.workspace.code_view import CodeViewWidget
+from app.ui.workspace.image_view import ImageViewWidget, is_image_file
 
 
 SIDEBAR_ITEMS = (
@@ -62,20 +64,16 @@ class _GatewayWorker(QThread):
         self._supervisor_client = supervisor_client
 
     def run(self) -> None:
-        from supervisor.gateway_controller import GatewayController
-
-        controller = GatewayController(log=self.progress.emit)
-
         try:
             if self._action == "refresh":
                 self.progress.emit("--- Refreshing status ---")
-                controller.status()
+                self._supervisor_client.gateway_status(log=self.progress.emit)
             elif self._action == "start":
                 self.progress.emit("--- Starting gateway ---")
-                controller.start()
+                self._supervisor_client.start_gateway(log=self.progress.emit)
             elif self._action == "stop":
                 self.progress.emit("--- Stopping gateway ---")
-                controller.stop()
+                self._supervisor_client.stop_gateway(log=self.progress.emit)
             self.progress.emit("--- Refreshing final status ---")
             self.finished.emit(self._supervisor_client.get_snapshot())
         except Exception as exc:
@@ -117,9 +115,10 @@ class MainWindow(QMainWindow):
         self._dir_tree = DirectoryTreeWidget()
         self._hex_view = HexViewWidget()
         self._code_view = CodeViewWidget()
+        self._image_view = ImageViewWidget()
         self._dir_tree.file_selected.connect(self._on_file_selected)
 
-        self._settings_view = SettingsPage(self.supervisor_client)
+        self._settings_view = SettingsPage(SettingsService(self.supervisor_client))
         self._settings_view.language_changed.connect(self._set_language)
         self._status_cards: dict[str, QWidget] = {}
         self._status_state_labels: dict[str, QLabel] = {}
@@ -230,10 +229,11 @@ class MainWindow(QMainWindow):
         return main_split
 
     def _build_fs_page(self) -> QWidget:
-        # Stacked widget to switch between hex and code views
+        # Stacked widget: [0] hex, [1] code, [2] image
         self._file_view_stack = QStackedWidget()
         self._file_view_stack.addWidget(self._hex_view)
         self._file_view_stack.addWidget(self._code_view)
+        self._file_view_stack.addWidget(self._image_view)
 
         split = QSplitter(Qt.Horizontal)
         split.addWidget(
@@ -246,12 +246,17 @@ class MainWindow(QMainWindow):
     def _on_file_selected(self, path: str) -> None:
         """Handle file selection from the directory tree.
 
-        Strategy: try to open as text first. If UTF-8 decode fails or
-        the file contains null bytes, fall back to hex view.
+        Routing: image → code (text) → hex (binary)
         """
+        # 1. Image files
+        if is_image_file(path):
+            self._image_view.load_file(path)
+            self._file_view_stack.setCurrentIndex(2)
+            return
+
+        # 2. Try text
         try:
             data = Path(path).read_bytes()
-            # Heuristic: if the first 8KB contain a null byte, it's binary
             sample = data[:8192]
             if b"\x00" in sample:
                 raise ValueError("binary file")
@@ -259,6 +264,7 @@ class MainWindow(QMainWindow):
             self._code_view.load_file(path, text=text)
             self._file_view_stack.setCurrentIndex(1)
         except (UnicodeDecodeError, ValueError):
+            # 3. Fallback to hex
             self._hex_view.load_file(path)
             self._file_view_stack.setCurrentIndex(0)
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtWidgets import QFileDialog
 from PySide6.QtWidgets import (
@@ -39,7 +37,6 @@ from app.presenters.settings_presenter import (
     snapshot_to_form_state,
 )
 from app.services.settings_service import SettingsService
-from app.services.supervisor_client import SupervisorClient
 
 
 class NoWheelSpinBox(QSpinBox):
@@ -65,50 +62,12 @@ class _InstallWorker(QThread):
         self._settings_service = settings_service
 
     def run(self) -> None:
-        from supervisor.install_runner import run_install
-
-        ide_config = self._settings_service.load().ide_config
-        ida_mcp_config = self._settings_service.load().ida_mcp_config
-
-        python_path = ide_config.python_path or ida_mcp_config.ida_python
-        if not python_path:
-            self.progress.emit("[ERROR] No Python executable configured")
-            from supervisor.models import InstallationActionResult, InstallationCheck
-
-            self.finished.emit(
-                InstallationActionResult(
-                    action="install",
-                    ok=False,
-                    summary="no Python executable configured",
-                    check=InstallationCheck(
-                        plugin_dir=ide_config.plugin_dir,
-                        plugin_dir_exists=bool(
-                            ide_config.plugin_dir
-                            and Path(ide_config.plugin_dir).exists()
-                        ),
-                        config_path=None,
-                        config_exists=False,
-                        python_executable=None,
-                        python_exists=False,
-                        ida_mcp_py_exists=False,
-                        ida_mcp_package_exists=False,
-                        summary="no python",
-                        warnings=["no Python executable"],
-                    ),
-                    warnings=["no Python executable"],
-                )
-            )
-            return
-
-        config_dict = ida_mcp_config.to_dict()
-        result = run_install(
-            python_executable=python_path,
-            ida_path=ida_mcp_config.ida_path or ide_config.ida_path,
-            plugin_dir=ide_config.plugin_dir,
-            ida_mcp_config_dict=config_dict,
-            on_progress=self.progress.emit,
-        )
-        self.finished.emit(result)
+        try:
+            result = self._settings_service.reinstall(on_progress=self.progress.emit)
+            self.finished.emit(result)
+        except Exception as exc:
+            self.progress.emit(f"Error: {exc}")
+            self.finished.emit(None)
 
 
 class SettingsPage(QWidget):
@@ -116,13 +75,10 @@ class SettingsPage(QWidget):
 
     def __init__(
         self,
-        settings_service: SettingsService | SupervisorClient | None = None,
+        settings_service: SettingsService | None = None,
     ) -> None:
         super().__init__()
-        if isinstance(settings_service, SupervisorClient):
-            self._settings_service = SettingsService(settings_service)
-        else:
-            self._settings_service = settings_service or SettingsService()
+        self._settings_service = settings_service or SettingsService()
 
         initial_snapshot = self._settings_service.load()
         self._language = normalize_language(initial_snapshot.ide_config.language)
