@@ -1,0 +1,1 @@
+"""File preview service placeholder."""

@@ -1,0 +1,1 @@
+"""IDA status panel placeholder."""
