@@ -1,4 +1,5 @@
 """Proxy-side lifecycle operations for launching IDA and shutting down the gateway."""
+
 from __future__ import annotations
 
 import os
@@ -15,6 +16,7 @@ from ..config import (
     get_ida_default_port,
     get_ida_path,
     get_open_in_ida_bundle_dir,
+    is_open_in_ida_autonomous_enabled,
     is_wsl_path_bridge_enabled,
 )
 from ._state import forward, get_instances
@@ -29,7 +31,12 @@ _LAUNCH_BUNDLE_ROOT = "ida_mcp_open"
 
 def _looks_like_windows_drive_path(path: str) -> bool:
     candidate = str(path).strip()
-    return len(candidate) >= 3 and candidate[0].isalpha() and candidate[1] == ":" and candidate[2] in {"\\", "/"}
+    return (
+        len(candidate) >= 3
+        and candidate[0].isalpha()
+        and candidate[1] == ":"
+        and candidate[2] in {"\\", "/"}
+    )
 
 
 def _looks_like_wsl_mount_path(path: str) -> bool:
@@ -109,7 +116,8 @@ def _cleanup_reserved_launch_ports(now: Optional[float] = None) -> None:
     stale_ports = [
         port
         for port, reserved_at in _RESERVED_LAUNCH_PORTS.items()
-        if port in registered_ports or (now - reserved_at) >= _PORT_RESERVATION_TTL_SECONDS
+        if port in registered_ports
+        or (now - reserved_at) >= _PORT_RESERVATION_TTL_SECONDS
     ]
     for port in stale_ports:
         _RESERVED_LAUNCH_PORTS.pop(port, None)
@@ -264,19 +272,29 @@ def _stage_file(path: Optional[str], bundle_dir: str) -> Optional[str]:
     return staged_local_path
 
 
-def _stage_target_file_for_launch(file_path: str, bundle_dir: str) -> tuple[str, Optional[str]]:
+def _stage_target_file_for_launch(
+    file_path: str, bundle_dir: str
+) -> tuple[str, Optional[str]]:
     launch_target, input_file_path, database_path = _resolve_launch_inputs(file_path)
     staged_input = _stage_file(input_file_path, bundle_dir)
     staged_database = _stage_file(database_path, bundle_dir)
 
-    launch_path = staged_database if database_path and launch_target == database_path else staged_input
+    launch_path = (
+        staged_database
+        if database_path and launch_target == database_path
+        else staged_input
+    )
     if not launch_path:
         raise RuntimeError(f"Failed to stage launch target for: {file_path}")
 
     requested_file = str(file_path)
-    if input_file_path and os.path.normcase(requested_file) == os.path.normcase(input_file_path):
+    if input_file_path and os.path.normcase(requested_file) == os.path.normcase(
+        input_file_path
+    ):
         staged_requested = staged_input
-    elif database_path and os.path.normcase(requested_file) == os.path.normcase(database_path):
+    elif database_path and os.path.normcase(requested_file) == os.path.normcase(
+        database_path
+    ):
         staged_requested = staged_database
     else:
         staged_requested = launch_path
@@ -292,14 +310,15 @@ def _use_direct_target_file(file_path: str) -> tuple[str, None]:
 def open_in_ida(
     file_path: str,
     extra_args: Optional[List[str]] = None,
-    autonomous: bool = True,
 ) -> dict:
     """Launch IDA and request plugin auto-start."""
     reserved_port: Optional[int] = None
     try:
         target_ida = get_ida_path()
         if not target_ida:
-            return {"error": "IDA path not configured. Please set IDA_PATH environment variable or 'ida_path' in config.conf."}
+            return {
+                "error": "IDA path not configured. Please set 'ida_path' in config.conf."
+            }
         local_target_ida = _local_fs_path(target_ida)
         if not local_target_ida or not os.path.exists(local_target_ida):
             return {"error": f"IDA executable not found at: {target_ida}"}
@@ -309,19 +328,25 @@ def open_in_ida(
             return {"error": f"File not found: {file_path}"}
 
         reserved_port = _reserve_launch_port()
-        configured_bundle_dir = _normalize_bundle_dir(_local_fs_path(get_open_in_ida_bundle_dir()))
-        bundle_dir = _launch_bundle_dir(configured_bundle_dir) if configured_bundle_dir else None
+        configured_bundle_dir = _normalize_bundle_dir(
+            _local_fs_path(get_open_in_ida_bundle_dir())
+        )
+        bundle_dir = (
+            _launch_bundle_dir(configured_bundle_dir) if configured_bundle_dir else None
+        )
         cmd = [local_target_ida]
         launch_args = [
             arg.strip()
             for arg in (extra_args or [])
             if isinstance(arg, str) and arg.strip() and arg.strip() != "-A"
         ]
-        if autonomous:
+        if is_open_in_ida_autonomous_enabled():
             launch_args.insert(0, "-A")
         if configured_bundle_dir:
             assert bundle_dir is not None
-            final_file_path, staged_file = _stage_target_file_for_launch(local_file_path, bundle_dir)
+            final_file_path, staged_file = _stage_target_file_for_launch(
+                local_file_path, bundle_dir
+            )
         else:
             final_file_path, staged_file = _use_direct_target_file(local_file_path)
         launch_file_path = _host_launch_path(final_file_path)
@@ -343,14 +368,30 @@ def open_in_ida(
         env["IDA_MCP_AUTO_START"] = "1"
         cwd = os.path.dirname(local_target_ida) or None
         try:
-            subprocess.Popen(cmd, cwd=cwd, env=env, close_fds=True if sys.platform != "win32" else False)
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                env=env,
+                close_fds=True if sys.platform != "win32" else False,
+            )
         except Exception:
             _release_launch_port(reserved_port)
             raise
+        try:
+            registry.register_pending_instance(
+                proc.pid,
+                reserved_port,
+                local_file_path,
+                _find_companion_database(local_file_path),
+                lifecycle_state="starting",
+            )
+        except Exception:
+            pass
         return {
             "status": "ok",
             "message": f"Launched IDA with preferred MCP port {reserved_port}: {' '.join(cmd)}",
             "requested_port": reserved_port,
+            "pid": getattr(proc, "pid", None),
             "launch_bundle": reported_bundle_dir,
             "staged_file": reported_staged_file,
             "launch_target": launch_file_path,

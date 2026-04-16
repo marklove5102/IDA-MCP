@@ -20,6 +20,11 @@
 
 The project uses a modular architecture:
 
+### Repository Subprojects
+
+* `ida_mcp/` - Core IDA capability layer, gateway, proxy, lifecycle, tools, and resources
+* `ide/` - Standalone PySide6 desktop IDE for installation, configuration, status inspection, and the multi-agent audit workbench
+
 ### Core Infrastructure
 
 * `rpc.py` - `@tool` / `@resource` / `@unsafe` decorators and registration
@@ -198,6 +203,9 @@ IDA-MCP/
       _state.py           # State management and port validation
       register_tools.py   # Consolidated forwarding tool registration
       http_server.py      # HTTP transport wrapper (reuses ida_mcp_proxy.server)
+  ide/                    # Standalone PySide6 desktop IDE subproject
+    project.md            # IDE structure and project map
+    roadmap.md            # IDE product and engineering roadmap
   mcp.json                # MCP client configuration (both modes)
   roadmap.md              # Phased plan for reducing py_eval dependence
   README.md               # README
@@ -218,17 +226,17 @@ IDA-MCP/
 
 Closing an IDA instance only deregisters that instance. The standalone gateway keeps running and can accept later instances.
 
-`open_in_ida` is a proxy-side lifecycle tool. It launches the IDA binary resolved from `IDA_PATH` or `config.conf` (`ida_path`), and requests plugin auto-start by setting `IDA_MCP_AUTO_START=1` and a reserved `IDA_MCP_PORT` in the child process environment. It now accepts an explicit `autonomous` parameter. `autonomous=true` adds `-A` and `autonomous=false` launches without `-A`. The default is `true`.
+`open_in_ida` is a proxy-side lifecycle tool. It launches the IDA binary resolved from `config.conf` (`ida_path`), and requests plugin auto-start by setting `IDA_MCP_AUTO_START=1` and a reserved `IDA_MCP_PORT` in the child process environment. Whether it adds `-A` is controlled by `config.conf` (`open_in_ida_autonomous`). The default remains `true`.
 
-`open_in_ida` uses `IDA_PATH` / `config.conf` to resolve the IDA executable. File staging is optional: when `IDA_MCP_BUNDLE_DIR` or `open_in_ida_bundle_dir` is configured, `open_in_ida` creates a timestamped launch directory under that root and copies the requested file there before launch. If a matching `.i64` or `.idb` already exists, it copies that database too and launches the database path directly so IDA can enter the existing workspace without showing the loader/options confirmation dialog again. When staging is not configured, `open_in_ida` launches the original path directly and still prefers an existing matching database when present.
+`open_in_ida` uses `config.conf` to resolve the IDA executable. File staging is optional: when `open_in_ida_bundle_dir` is configured, `open_in_ida` creates a timestamped launch directory under that root and copies the requested file there before launch. If a matching `.i64` or `.idb` already exists, it copies that database too and launches the database path directly so IDA can enter the existing workspace without showing the loader/options confirmation dialog again. When staging is not configured, `open_in_ida` launches the original path directly and still prefers an existing matching database when present.
 
-With the default `autonomous=true`, IDA starts in batch/autonomous mode. That is useful for unattended automation and can reduce some interactive confirmation flows, but it is not the same as a normal manual reverse-engineering session: interactive dialogs may be suppressed, loader/plugin/UI behaviors that expect manual confirmation can differ.
+With the default `open_in_ida_autonomous=true`, IDA starts in batch/autonomous mode. That is useful for unattended automation and can reduce some interactive confirmation flows, but it is not the same as a normal manual reverse-engineering session: interactive dialogs may be suppressed, loader/plugin/UI behaviors that expect manual confirmation can differ.
 
 If you want to combine automation with later manual work, use a two-stage flow:
 
-1. Call `open_in_ida(..., autonomous=true)` to let IDA run the automated phase.
+1. Call `open_in_ida(...)` while `open_in_ida_autonomous=true` to let IDA run the automated phase.
 2. Save the generated `.i64/.idb`.
-3. Reopen that database with `open_in_ida(..., autonomous=false)` for normal manual interaction.
+3. Set `open_in_ida_autonomous=false` and reopen that database with `open_in_ida(...)` for normal manual interaction.
 
 If you use WSL as the control side, these are README-only operational recommendations. IDA-MCP does not read them. Recommended Windows-side `%UserProfile%\\.wslconfig`:
 
@@ -297,7 +305,7 @@ Edit `ida_mcp/config.conf` to customize settings:
 enable_stdio = false
 enable_http = true
 enable_unsafe = true
-# wsl_path_bridge = false
+wsl_path_bridge = false
 
 # HTTP proxy settings
 # http_host = "127.0.0.1"
@@ -305,34 +313,31 @@ enable_unsafe = true
 # http_path = "/mcp"
 
 # IDA instance settings
-# ida_default_port = 10000
+ida_default_port = 10000
+ida_host = "127.0.0.1"
 # ida_path = "C:\\Path\\To\\ida.exe"
 # ida_python = "C:\\Path\\To\\ida-python\\python.exe"
-# open_in_ida_bundle_dir = "D:\\Temp\\ida-mcp"
+open_in_ida_bundle_dir = ""
+open_in_ida_autonomous = true
+auto_start = false
+server_name = "IDA-MCP"
 
 # General settings
-# gateway_python = "C:\\Path\\To\\python.exe"
 # request_timeout = 30
 # debug = false
 ```
 
 Notes:
 
-* The gateway host and direct instance host are fixed to `127.0.0.1` for client connections in code.
-* `IDA_PATH` overrides `ida_path` from `config.conf`.
-* `IDA_MCP_PYTHON` overrides `gateway_python` from `config.conf`.
-* `ida_python` records the IDA-side Python selected during installation so the configured environment is visible later.
-* `IDA_MCP_BUNDLE_DIR` overrides `open_in_ida_bundle_dir` from `config.conf`.
-* `IDA_MCP_ENABLE_UNSAFE=1|0` overrides `enable_unsafe` from `config.conf`.
-* `IDA_MCP_WSL_PATH_BRIDGE=1|0` overrides `wsl_path_bridge` from `config.conf`.
-* `gateway_python` is used for the standalone gateway/proxy subprocess. `install.py` recommends filling it explicitly; if left unset, runtime falls back to auto-discovery.
-* `open_in_ida` no longer accepts an `ida_path` tool argument; configure the IDA executable through `IDA_PATH` or `config.conf`.
+* The gateway client connection host remains derived from `http_host`; the per-instance host is configured with `ida_host`.
+* `ida_python` records the IDA-side Python selected during installation so the configured environment is visible later. The gateway/proxy subprocess also uses `ida_python` at runtime.
+* `open_in_ida` no longer accepts an `ida_path` tool argument; configure the IDA executable through `config.conf`.
 * `open_in_ida` sets `IDA_MCP_AUTO_START=1` and `IDA_MCP_PORT=<reserved_port>` for the launched IDA process.
-* `open_in_ida` now takes an `autonomous` parameter; it is not configured through `config.conf`.
-* `autonomous` defaults to `true`, so `open_in_ida` adds `-A` unless you call it with `autonomous=false`.
-* `-A` switches IDA into batch/autonomous startup mode. For the "automate first, inspect later" workflow, save the `.i64/.idb` and reopen it with `autonomous=false`.
+* `open_in_ida` no longer takes an `autonomous` tool parameter; configure `open_in_ida_autonomous` in `config.conf` instead.
+* `open_in_ida_autonomous` defaults to `true`, so `open_in_ida` adds `-A` unless config disables it.
+* `-A` switches IDA into batch/autonomous startup mode. For the "automate first, inspect later" workflow, save the `.i64/.idb`, set `open_in_ida_autonomous=false`, and reopen it.
 * With `-A`, confirmation dialogs and some loader/plugin/UI flows can be suppressed or behave differently from normal GUI startup.
-* `open_in_ida` only stages files when `IDA_MCP_BUNDLE_DIR` or `open_in_ida_bundle_dir` is configured.
+* `open_in_ida` only stages files when `open_in_ida_bundle_dir` is configured.
 * When staging is enabled, `open_in_ida` creates `.../<timestamp>/`, copies the requested file, and also copies a matching `.i64`/`.idb` when one exists.
 * When a matching `.i64`/`.idb` exists, `open_in_ida` launches that database path directly to avoid the initial loader/options confirmation flow.
 * When staging is not enabled, `open_in_ida` launches the original path directly.
@@ -448,7 +453,7 @@ The installer:
 * first prompts for the IDA install path and IDA Python path; leaving either blank falls back to auto-discovery, which may take a while
 * uses the selected IDA-side Python to run `pip install -r requirements.txt`
 * copies `ida_mcp.py` and `ida_mcp/` into IDA's `plugins/` directory
-* interactively generates the destination `ida_mcp/config.conf` and recommends setting `gateway_python` explicitly to avoid slow runtime auto-discovery
+* interactively generates the destination `ida_mcp/config.conf`
 
 Use `python install.py --dry-run` to verify detection and configuration choices without making changes.
 
@@ -462,7 +467,6 @@ python command.py gateway restart
 python command.py gateway status
 python command.py ida list
 python command.py ida open ./test/samples/simple.exe
-python command.py ida open ./test/samples/simple.exe --interactive
 python command.py ida select --port 10000
 python command.py tool call get_metadata --port 10000
 python command.py resource read ida://functions --port 10000

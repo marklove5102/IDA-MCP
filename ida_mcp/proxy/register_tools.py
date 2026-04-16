@@ -1,4 +1,5 @@
 """Proxy tool registration for forwarded IDA operations."""
+
 from __future__ import annotations
 
 import functools
@@ -81,25 +82,39 @@ def register_tools(server: Any) -> None:
     unsafe_enabled = is_unsafe_enabled()
     _register_forwarded_backend_tools(server, unsafe_enabled)
 
-    @server.tool(description="Launch IDA Pro with the specified file. Automatically attempts to load IDA-MCP plugin.")
+    @server.tool(
+        description="Launch IDA Pro with the specified file. Automatically attempts to load IDA-MCP plugin."
+    )
     def open_in_ida(
-        file_path: Annotated[str, Field(description="Path to the file to open (executable or IDB)")],
-        extra_args: Annotated[Optional[List[str]], Field(description="Extra arguments to pass to IDA")] = None,
-        autonomous: Annotated[bool, Field(description="Whether to launch IDA with -A (batch/autonomous mode)")] = True,
+        file_path: Annotated[
+            str, Field(description="Path to the file to open (executable or IDB)")
+        ],
+        extra_args: Annotated[
+            Optional[List[str]], Field(description="Extra arguments to pass to IDA")
+        ] = None,
     ) -> dict:
-        return lifecycle.open_in_ida(file_path, extra_args=extra_args, autonomous=autonomous)
+        return lifecycle.open_in_ida(file_path, extra_args=extra_args)
 
-    @server.tool(description="Close the target IDA instance. Warning: This terminates the process.")
+    @server.tool(
+        description="Close the target IDA instance. Warning: This terminates the process."
+    )
     def close_ida(
-        save: Annotated[bool, Field(description="Whether to save IDB file before closing")] = True,
+        save: Annotated[
+            bool, Field(description="Whether to save IDB file before closing")
+        ] = True,
         port: _PORT_ANNOTATION = None,
         timeout: _TIMEOUT_ANNOTATION = None,
     ) -> dict:
         return lifecycle.close_ida(save=save, port=port, timeout=timeout)
 
-    @server.tool(description="Request shutdown of the standalone gateway. Refuses while instances are registered unless force=true.")
+    @server.tool(
+        description="Request shutdown of the standalone gateway. Refuses while instances are registered unless force=true."
+    )
     def shutdown_gateway(
-        force: Annotated[bool, Field(description="Allow shutdown even if instances are still registered")] = False,
+        force: Annotated[
+            bool,
+            Field(description="Allow shutdown even if instances are still registered"),
+        ] = False,
         timeout: _TIMEOUT_ANNOTATION = None,
     ) -> dict:
         return lifecycle.shutdown_gateway(force=force, timeout=timeout)

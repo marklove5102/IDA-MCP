@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """IDA-MCP command-line helper."""
+
 from __future__ import annotations
 
 import argparse
@@ -83,7 +84,9 @@ def _print_error(payload: dict[str, Any]) -> None:
     if not isinstance(error, dict):
         print("Operation failed.")
         return
-    print(f"Error [{error.get('code', 'unknown')}]: {error.get('message', 'unknown error')}")
+    print(
+        f"Error [{error.get('code', 'unknown')}]: {error.get('message', 'unknown error')}"
+    )
     details = error.get("details")
     if details:
         print(json.dumps(details, indent=2, ensure_ascii=False, default=str))
@@ -144,7 +147,6 @@ def _cmd_ida_open(args: argparse.Namespace) -> int:
     payload = control.open_ida(
         args.file_path,
         extra_args=args.extra_arg or None,
-        autonomous=args.autonomous,
     )
     if args.json or "error" in payload:
         _dump_json(payload)
@@ -201,7 +203,9 @@ def _cmd_tool_call(args: argparse.Namespace) -> int:
         _dump_json(payload)
         return EXIT_USAGE
 
-    payload = control.call_tool(args.tool_name, params=params, port=args.port, timeout=args.timeout)
+    payload = control.call_tool(
+        args.tool_name, params=params, port=args.port, timeout=args.timeout
+    )
     if args.json or "error" in payload:
         _dump_json(payload)
     else:
@@ -242,24 +246,48 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="IDA-MCP command-line helper")
     subparsers = parser.add_subparsers(dest="command")
 
-    gateway_parser = subparsers.add_parser("gateway", help="Manage the standalone gateway")
+    gateway_parser = subparsers.add_parser(
+        "gateway", help="Manage the standalone gateway"
+    )
     gateway_subparsers = gateway_parser.add_subparsers(dest="gateway_command")
 
-    gateway_start = gateway_subparsers.add_parser("start", help="Start the standalone gateway")
-    gateway_start.add_argument("--timeout", type=float, default=3.0, help="Startup timeout in seconds")
+    gateway_start = gateway_subparsers.add_parser(
+        "start", help="Start the standalone gateway"
+    )
+    gateway_start.add_argument(
+        "--timeout", type=float, default=3.0, help="Startup timeout in seconds"
+    )
     gateway_start.add_argument("--json", action="store_true", help="Print JSON output")
     gateway_start.set_defaults(handler=_cmd_gateway_start)
 
-    gateway_stop = gateway_subparsers.add_parser("stop", help="Stop the standalone gateway")
-    gateway_stop.add_argument("--force", action="store_true", help="Force stop even if instances are registered")
-    gateway_stop.add_argument("--timeout", type=float, default=None, help="Shutdown timeout in seconds")
+    gateway_stop = gateway_subparsers.add_parser(
+        "stop", help="Stop the standalone gateway"
+    )
+    gateway_stop.add_argument(
+        "--force",
+        action="store_true",
+        help="Force stop even if instances are registered",
+    )
+    gateway_stop.add_argument(
+        "--timeout", type=float, default=None, help="Shutdown timeout in seconds"
+    )
     gateway_stop.add_argument("--json", action="store_true", help="Print JSON output")
     gateway_stop.set_defaults(handler=_cmd_gateway_stop)
 
-    gateway_restart = gateway_subparsers.add_parser("restart", help="Restart the standalone gateway")
-    gateway_restart.add_argument("--force", action="store_true", help="Force stop even if instances are registered")
-    gateway_restart.add_argument("--timeout", type=float, default=3.0, help="Restart timeout in seconds")
-    gateway_restart.add_argument("--json", action="store_true", help="Print JSON output")
+    gateway_restart = gateway_subparsers.add_parser(
+        "restart", help="Restart the standalone gateway"
+    )
+    gateway_restart.add_argument(
+        "--force",
+        action="store_true",
+        help="Force stop even if instances are registered",
+    )
+    gateway_restart.add_argument(
+        "--timeout", type=float, default=3.0, help="Restart timeout in seconds"
+    )
+    gateway_restart.add_argument(
+        "--json", action="store_true", help="Print JSON output"
+    )
     gateway_restart.set_defaults(handler=_cmd_gateway_restart)
 
     gateway_status = gateway_subparsers.add_parser("status", help="Show gateway status")
@@ -277,27 +305,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Extra argument to pass to IDA (repeatable)",
     )
-    ida_open.add_argument(
-        "--autonomous",
-        dest="autonomous",
-        action="store_true",
-        default=True,
-        help="Launch with -A (default)",
-    )
-    ida_open.add_argument(
-        "--interactive",
-        dest="autonomous",
-        action="store_false",
-        help="Launch without -A",
-    )
     ida_open.add_argument("--json", action="store_true", help="Print JSON output")
     ida_open.set_defaults(handler=_cmd_ida_open)
 
     ida_close = ida_subparsers.add_parser("close", help="Close an IDA instance")
-    ida_close.add_argument("--port", type=int, default=None, help="Target instance port")
-    ida_close.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
-    ida_close.add_argument("--save", dest="save", action="store_true", default=True, help="Save IDB before closing")
-    ida_close.add_argument("--no-save", dest="save", action="store_false", help="Do not save IDB before closing")
+    ida_close.add_argument(
+        "--port", type=int, default=None, help="Target instance port"
+    )
+    ida_close.add_argument(
+        "--timeout", type=int, default=None, help="Timeout in seconds"
+    )
+    ida_close.add_argument(
+        "--save",
+        dest="save",
+        action="store_true",
+        default=True,
+        help="Save IDB before closing",
+    )
+    ida_close.add_argument(
+        "--no-save",
+        dest="save",
+        action="store_false",
+        help="Do not save IDB before closing",
+    )
     ida_close.add_argument("--json", action="store_true", help="Print JSON output")
     ida_close.set_defaults(handler=_cmd_ida_close)
 
@@ -305,41 +335,71 @@ def build_parser() -> argparse.ArgumentParser:
     ida_list.add_argument("--json", action="store_true", help="Print JSON output")
     ida_list.set_defaults(handler=_cmd_ida_list)
 
-    ida_select = ida_subparsers.add_parser("select", help="Select or validate a target instance port")
-    ida_select.add_argument("--port", type=int, default=None, help="Target instance port")
+    ida_select = ida_subparsers.add_parser(
+        "select", help="Select or validate a target instance port"
+    )
+    ida_select.add_argument(
+        "--port", type=int, default=None, help="Target instance port"
+    )
     ida_select.add_argument("--json", action="store_true", help="Print JSON output")
     ida_select.set_defaults(handler=_cmd_ida_select)
 
-    instances_parser = subparsers.add_parser("instances", help="Alias for ida instance inspection")
+    instances_parser = subparsers.add_parser(
+        "instances", help="Alias for ida instance inspection"
+    )
     instances_subparsers = instances_parser.add_subparsers(dest="instances_command")
-    instances_list = instances_subparsers.add_parser("list", help="List registered IDA instances")
+    instances_list = instances_subparsers.add_parser(
+        "list", help="List registered IDA instances"
+    )
     instances_list.add_argument("--json", action="store_true", help="Print JSON output")
     instances_list.set_defaults(handler=_cmd_ida_list)
 
-    tool_parser = subparsers.add_parser("tool", help="Direct tool invocation via the gateway")
+    tool_parser = subparsers.add_parser(
+        "tool", help="Direct tool invocation via the gateway"
+    )
     tool_subparsers = tool_parser.add_subparsers(dest="tool_command")
 
     tool_call = tool_subparsers.add_parser("call", help="Call a proxy tool directly")
     tool_call.add_argument("tool_name", help="Tool name")
-    tool_call.add_argument("--port", type=int, default=None, help="Target instance port")
-    tool_call.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
-    tool_call.add_argument("--params", default="{}", help="Tool params as a JSON object")
+    tool_call.add_argument(
+        "--port", type=int, default=None, help="Target instance port"
+    )
+    tool_call.add_argument(
+        "--timeout", type=int, default=None, help="Timeout in seconds"
+    )
+    tool_call.add_argument(
+        "--params", default="{}", help="Tool params as a JSON object"
+    )
     tool_call.add_argument("--json", action="store_true", help="Print JSON output")
     tool_call.set_defaults(handler=_cmd_tool_call)
 
-    resource_parser = subparsers.add_parser("resource", help="Read direct-instance MCP resources")
+    resource_parser = subparsers.add_parser(
+        "resource", help="Read direct-instance MCP resources"
+    )
     resource_subparsers = resource_parser.add_subparsers(dest="resource_command")
 
-    resource_read = resource_subparsers.add_parser("read", help="Read a resource from a direct instance")
+    resource_read = resource_subparsers.add_parser(
+        "read", help="Read a resource from a direct instance"
+    )
     resource_read.add_argument("uri", help="Resource URI to read")
-    resource_read.add_argument("--port", type=int, default=None, help="Target instance port")
-    resource_read.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
+    resource_read.add_argument(
+        "--port", type=int, default=None, help="Target instance port"
+    )
+    resource_read.add_argument(
+        "--timeout", type=int, default=None, help="Timeout in seconds"
+    )
     resource_read.add_argument("--json", action="store_true", help="Print JSON output")
     resource_read.set_defaults(handler=_cmd_resource_read)
 
-    resource_list = resource_subparsers.add_parser("list", help="List direct-instance resources")
-    resource_list.add_argument("--port", type=int, default=None, help="Target instance port")
-    resource_list.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
+    resource_list = resource_subparsers.add_parser(
+        "list", help="List direct-instance resources"
+    )
+    resource_list.add_argument(
+        "--port", type=int, default=None, help="Target instance port"
+    )
+    resource_list.add_argument(
+        "--timeout", type=int, default=None, help="Timeout in seconds"
+    )
     resource_list.add_argument("--json", action="store_true", help="Print JSON output")
     resource_list.set_defaults(handler=_cmd_resource_list)
 

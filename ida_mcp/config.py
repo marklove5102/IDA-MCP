@@ -15,17 +15,21 @@ HTTP 代理配置:
     - http_port: 网关监听端口 (默认 11338)
     - http_path: MCP 端点路径 (默认 /mcp)
 
-IDA 实例配置 (内部组件，地址固定为 127.0.0.1):
+IDA 实例配置:
     - ida_default_port: IDA 实例 MCP 端口起始值 (默认 10000)
     - ida_path: IDA 可执行文件路径
     - ida_python: IDA Python 可执行文件路径
+    - ida_host: IDA 实例 MCP 监听地址 (默认 127.0.0.1)
     - open_in_ida_bundle_dir: open_in_ida staging 目录 (可选)
+    - open_in_ida_autonomous: 是否默认以 -A 启动 open_in_ida (默认 true)
+    - auto_start: 插件加载后是否默认自动启动实例服务 (默认 false)
+    - server_name: MCP 服务名 (默认 IDA-MCP)
 
 通用配置:
-    - gateway_python: 独立 gateway/proxy 子进程使用的 Python (可选)
     - request_timeout: 请求超时时间 (默认 30 秒)
     - debug: 是否启用调试日志 (默认 false)
 """
+
 from __future__ import annotations
 
 import os
@@ -38,24 +42,24 @@ _CONFIG_FILE = os.path.join(_CONFIG_DIR, "config.conf")
 # 默认配置
 _DEFAULT_CONFIG = {
     # 传输方式开关
-    "enable_stdio": False,   # 是否启用 stdio 模式（协调器）
-    "enable_http": True,    # 是否启用 HTTP 代理模式
+    "enable_stdio": False,  # 是否启用 stdio 模式（协调器）
+    "enable_http": True,  # 是否启用 HTTP 代理模式
     "enable_unsafe": True,  # 是否启用 unsafe 工具
     "wsl_path_bridge": False,  # 是否启用 WSL/Windows 路径桥接
-    
     # HTTP 代理配置
     "http_host": "127.0.0.1",
     "http_port": 11338,
     "http_path": "/mcp",
-    
-    # IDA 实例配置（地址固定为 127.0.0.1，仅端口可配置）
+    # IDA 实例配置
     "ida_default_port": 10000,
-    "ida_path": None, # IDA 可执行文件路径
-    "ida_python": None, # IDA Python 可执行文件路径
-    "open_in_ida_bundle_dir": None, # open_in_ida staging 目录
-
+    "ida_path": None,  # IDA 可执行文件路径
+    "ida_python": None,  # IDA Python 可执行文件路径
+    "ida_host": "127.0.0.1",  # IDA 实例 MCP 监听地址
+    "open_in_ida_bundle_dir": None,  # open_in_ida staging 目录
+    "open_in_ida_autonomous": True,  # open_in_ida 是否默认追加 -A
+    "auto_start": False,  # 插件加载后是否自动启动实例服务
+    "server_name": "IDA-MCP",  # MCP 服务名
     # 通用配置
-    "gateway_python": None, # 独立 gateway/proxy 子进程使用的 Python
     "request_timeout": 30,
     "debug": False,
 }
@@ -65,7 +69,7 @@ _cached_config: Dict[str, Any] | None = None
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
-    """将配置值或环境变量值转换为布尔值。"""
+    """将配置值转换为布尔值。"""
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
@@ -82,30 +86,31 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 def _parse_value(value: str) -> Any:
     """解析配置值，支持字符串、整数、布尔值。"""
     value = value.strip()
-    
+
     # 去除引号
-    if (value.startswith('"') and value.endswith('"')) or \
-       (value.startswith("'") and value.endswith("'")):
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
         return value[1:-1]
-    
+
     # 布尔值
     if value.lower() in ("true", "yes", "on", "1"):
         return True
     if value.lower() in ("false", "no", "off", "0"):
         return False
-    
+
     # 整数
     try:
         return int(value)
     except ValueError:
         pass
-    
+
     # 浮点数
     try:
         return float(value)
     except ValueError:
         pass
-    
+
     return value
 
 
@@ -150,6 +155,7 @@ def load_config(reload: bool = False) -> Dict[str, Any]:
 # 网关内部 API 配置访问函数
 # ============================================================================
 
+
 def get_http_bind_host() -> str:
     """获取 HTTP 网关监听地址。"""
     config = load_config()
@@ -183,6 +189,7 @@ def get_gateway_internal_url() -> str:
 # HTTP 代理配置访问函数
 # ============================================================================
 
+
 def get_http_host() -> str:
     """获取 HTTP 网关监听地址。兼容旧调用。"""
     return get_http_bind_host()
@@ -212,13 +219,12 @@ def get_http_url() -> str:
 # IDA 实例配置访问函数
 # ============================================================================
 
-# IDA 实例是内部组件，地址固定为 127.0.0.1
-_IDA_HOST = "127.0.0.1"
-
 
 def get_ida_host() -> str:
-    """获取 IDA 实例 MCP 服务器监听地址（固定为 127.0.0.1，不可配置）。"""
-    return _IDA_HOST
+    """获取 IDA 实例 MCP 服务器监听地址。"""
+    config = load_config()
+    host = str(config.get("ida_host", "127.0.0.1")).strip()
+    return host or "127.0.0.1"
 
 
 def get_ida_default_port() -> int:
@@ -226,22 +232,12 @@ def get_ida_default_port() -> int:
     config = load_config()
     return int(config.get("ida_default_port", 10000))
 
+
 def get_ida_path() -> str | None:
-    """获取 IDA 可执行文件路径。
-    
-    优先级:
-    1. 环境变量 IDA_PATH
-    2. 配置文件中的 ida_path
-    3. None
-    """
-    path = None
-    env_path = os.getenv("IDA_PATH")
-    if env_path:
-        path = env_path
-    else:
-        config = load_config()
-        path = config.get("ida_path")
-        
+    """获取 IDA 可执行文件路径。"""
+    config = load_config()
+    path = config.get("ida_path")
+
     if isinstance(path, str):
         path = path.strip()
         if path:
@@ -250,12 +246,7 @@ def get_ida_path() -> str | None:
 
 
 def get_ida_python() -> str | None:
-    """获取 IDA Python 可执行文件路径。
-
-    优先级:
-    1. 配置文件中的 ida_python
-    2. None
-    """
+    """获取 IDA Python 可执行文件路径。"""
     config = load_config()
     path = config.get("ida_python")
 
@@ -267,17 +258,7 @@ def get_ida_python() -> str | None:
 
 
 def get_open_in_ida_bundle_dir() -> str | None:
-    """获取 open_in_ida 使用的 staging 目录。
-
-    优先级:
-    1. 环境变量 IDA_MCP_BUNDLE_DIR
-    2. 配置文件中的 open_in_ida_bundle_dir
-    3. None
-    """
-    env_path = os.getenv("IDA_MCP_BUNDLE_DIR")
-    if env_path and env_path.strip():
-        return env_path.strip()
-
+    """获取 open_in_ida 使用的 staging 目录。"""
     config = load_config()
     configured_path = config.get("open_in_ida_bundle_dir")
     if isinstance(configured_path, str):
@@ -287,30 +268,16 @@ def get_open_in_ida_bundle_dir() -> str | None:
     return None
 
 
-def get_gateway_python() -> str | None:
-    """获取独立 gateway/proxy 子进程使用的 Python。
-
-    优先级:
-    1. 环境变量 IDA_MCP_PYTHON
-    2. 配置文件中的 gateway_python
-    3. None（交给自动探测）
-    """
-    env_path = os.getenv("IDA_MCP_PYTHON")
-    if env_path and env_path.strip():
-        return env_path.strip()
-
+def is_open_in_ida_autonomous_enabled() -> bool:
+    """是否让 open_in_ida 默认以 autonomous 模式启动。"""
     config = load_config()
-    configured_path = config.get("gateway_python")
-    if isinstance(configured_path, str):
-        configured_path = configured_path.strip()
-        if configured_path:
-            return configured_path
-    return None
+    return _coerce_bool(config.get("open_in_ida_autonomous", True), True)
 
 
 # ============================================================================
 # 通用配置访问函数
 # ============================================================================
+
 
 def get_request_timeout() -> int:
     """获取请求超时时间（秒）。"""
@@ -328,6 +295,7 @@ def is_debug_enabled() -> bool:
 # 传输方式开关
 # ============================================================================
 
+
 def is_stdio_enabled() -> bool:
     """是否启用 stdio 模式（协调器）。"""
     config = load_config()
@@ -341,32 +309,25 @@ def is_http_enabled() -> bool:
 
 
 def is_unsafe_enabled() -> bool:
-    """是否启用 unsafe 工具。
-
-    优先级:
-    1. 环境变量 IDA_MCP_ENABLE_UNSAFE
-    2. 配置文件中的 enable_unsafe
-    3. 默认值 true
-    """
-    env_value = os.getenv("IDA_MCP_ENABLE_UNSAFE")
-    if env_value is not None:
-        return _coerce_bool(env_value, True)
-
+    """是否启用 unsafe 工具。"""
     config = load_config()
     return _coerce_bool(config.get("enable_unsafe", True), True)
 
 
 def is_wsl_path_bridge_enabled() -> bool:
-    """是否启用 WSL/Windows 路径桥接。
-
-    优先级:
-    1. 环境变量 IDA_MCP_WSL_PATH_BRIDGE
-    2. 配置文件中的 wsl_path_bridge
-    3. 默认值 false
-    """
-    env_value = os.getenv("IDA_MCP_WSL_PATH_BRIDGE")
-    if env_value is not None:
-        return _coerce_bool(env_value, False)
-
+    """是否启用 WSL/Windows 路径桥接。"""
     config = load_config()
     return _coerce_bool(config.get("wsl_path_bridge", False), False)
+
+
+def is_auto_start_enabled() -> bool:
+    """插件加载后是否默认自动启动实例服务。"""
+    config = load_config()
+    return _coerce_bool(config.get("auto_start", False), False)
+
+
+def get_server_name() -> str:
+    """获取 MCP 服务名。"""
+    config = load_config()
+    name = str(config.get("server_name", "IDA-MCP")).strip()
+    return name or "IDA-MCP"

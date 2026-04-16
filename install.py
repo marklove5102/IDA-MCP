@@ -64,7 +64,11 @@ def unique_existing_paths(paths: Iterable[Path]) -> list[Path]:
         except OSError:
             continue
         if resolved.exists() and resolved.is_file():
-            seen[str(resolved).lower() if detect_platform() == "windows" else str(resolved)] = resolved
+            seen[
+                str(resolved).lower()
+                if detect_platform() == "windows"
+                else str(resolved)
+            ] = resolved
     return list(seen.values())
 
 
@@ -136,12 +140,10 @@ def candidate_ida_patterns(platform_name: str) -> list[str]:
     return patterns
 
 
-def discover_ida_executables(platform_name: str, config: dict[str, object]) -> list[Path]:
+def discover_ida_executables(
+    platform_name: str, config: dict[str, object]
+) -> list[Path]:
     candidates: list[Path] = []
-    for env_name in ("IDA_PATH", "IDADIR"):
-        value = os.environ.get(env_name)
-        if value:
-            candidates.extend(resolve_ida_input(Path(value), platform_name))
     configured_path = config.get("ida_path")
     if isinstance(configured_path, str) and configured_path:
         candidates.extend(resolve_ida_input(Path(configured_path), platform_name))
@@ -246,7 +248,9 @@ def sort_python_candidates(paths: list[Path]) -> list[Path]:
 
 
 def print_section(title: str) -> None:
-    print(f"\n{color_text('==', Fore.CYAN if Fore else '', True)} {color_text(title, Fore.CYAN if Fore else '', True)} {color_text('==', Fore.CYAN if Fore else '', True)}")
+    print(
+        f"\n{color_text('==', Fore.CYAN if Fore else '', True)} {color_text(title, Fore.CYAN if Fore else '', True)} {color_text('==', Fore.CYAN if Fore else '', True)}"
+    )
 
 
 def print_help(message: str) -> None:
@@ -313,7 +317,9 @@ def prompt_int(message: str, default: int) -> int:
             print_warn("Please enter an integer.")
 
 
-def prompt_optional_existing_file(message: str, default: str = "", show_default: bool = True) -> str:
+def prompt_optional_existing_file(
+    message: str, default: str = "", show_default: bool = True
+) -> str:
     suffix = f" [{default}]" if default and show_default else ""
     while True:
         response = input(f"{message}{suffix}: ").strip()
@@ -430,7 +436,9 @@ def ensure_pip(ida_python: Path) -> None:
     try:
         run_command([str(ida_python), "-m", "pip", "--version"])
     except subprocess.CalledProcessError:
-        print_warn("`pip` was not available in the IDA Python environment. Trying ensurepip...")
+        print_warn(
+            "`pip` was not available in the IDA Python environment. Trying ensurepip..."
+        )
         run_command([str(ida_python), "-m", "ensurepip", "--upgrade"])
         run_command([str(ida_python), "-m", "pip", "--version"])
 
@@ -486,12 +494,15 @@ def render_config(config: dict[str, object]) -> str:
             "",
             "# IDA instance settings",
             f"ida_default_port = {quote_config_value(config['ida_default_port'])}",
+            f"ida_host = {quote_config_value(config['ida_host'])}",
             f"ida_path = {quote_config_value(config['ida_path'])}",
             f"ida_python = {quote_config_value(config['ida_python'])}",
             f"open_in_ida_bundle_dir = {quote_config_value(config['open_in_ida_bundle_dir'])}",
+            f"open_in_ida_autonomous = {quote_config_value(config['open_in_ida_autonomous'])}",
+            f"auto_start = {quote_config_value(config['auto_start'])}",
+            f"server_name = {quote_config_value(config['server_name'])}",
             "",
             "# General settings",
-            f"gateway_python = {quote_config_value(config['gateway_python'])}",
             f"request_timeout = {quote_config_value(config['request_timeout'])}",
             f"debug = {quote_config_value(config['debug'])}",
             "",
@@ -499,7 +510,9 @@ def render_config(config: dict[str, object]) -> str:
     )
 
 
-def build_config_interactively(defaults: dict[str, object], ida_executable: Path, ida_python: Path) -> dict[str, object]:
+def build_config_interactively(
+    defaults: dict[str, object], ida_executable: Path, ida_python: Path
+) -> dict[str, object]:
     config = {
         "enable_stdio": bool(defaults.get("enable_stdio", False)),
         "enable_http": bool(defaults.get("enable_http", True)),
@@ -509,19 +522,28 @@ def build_config_interactively(defaults: dict[str, object], ida_executable: Path
         "http_port": int(defaults.get("http_port", 11338)),
         "http_path": str(defaults.get("http_path", "/mcp")),
         "ida_default_port": int(defaults.get("ida_default_port", 10000)),
+        "ida_host": str(defaults.get("ida_host", "127.0.0.1")),
         "ida_path": str(ida_executable),
         "ida_python": str(defaults.get("ida_python") or ida_python),
         "open_in_ida_bundle_dir": str(defaults.get("open_in_ida_bundle_dir") or ""),
-        "gateway_python": str(defaults.get("gateway_python") or ida_python),
+        "open_in_ida_autonomous": bool(defaults.get("open_in_ida_autonomous", True)),
+        "auto_start": bool(defaults.get("auto_start", False)),
+        "server_name": str(defaults.get("server_name", "IDA-MCP")),
         "request_timeout": int(defaults.get("request_timeout", 30)),
         "debug": bool(defaults.get("debug", False)),
     }
 
     print_section("Configure ida_mcp/config.conf")
     print_help("Press Enter to keep the current default shown in brackets.")
-    config["enable_http"] = prompt_bool("Enable HTTP gateway mode", bool(config["enable_http"]))
-    config["enable_stdio"] = prompt_bool("Enable stdio mode", bool(config["enable_stdio"]))
-    config["enable_unsafe"] = prompt_bool("Enable unsafe tools", bool(config["enable_unsafe"]))
+    config["enable_http"] = prompt_bool(
+        "Enable HTTP gateway mode", bool(config["enable_http"])
+    )
+    config["enable_stdio"] = prompt_bool(
+        "Enable stdio mode", bool(config["enable_stdio"])
+    )
+    config["enable_unsafe"] = prompt_bool(
+        "Enable unsafe tools", bool(config["enable_unsafe"])
+    )
     config["wsl_path_bridge"] = prompt_bool(
         "Enable WSL path bridge (client/LLM in WSL, IDA/Python on Windows host)",
         bool(config["wsl_path_bridge"]),
@@ -533,6 +555,7 @@ def build_config_interactively(defaults: dict[str, object], ida_executable: Path
         "Per-instance default starting port",
         int(config["ida_default_port"]),
     )
+    config["ida_host"] = prompt("Per-instance bind host", str(config["ida_host"]))
     config["ida_path"] = prompt_existing_file(
         "IDA executable path for open_in_ida",
         str(config["ida_path"]),
@@ -543,24 +566,27 @@ def build_config_interactively(defaults: dict[str, object], ida_executable: Path
     )
     print_help("Leave open_in_ida_bundle_dir empty to open the original path directly.")
     print_help("When WSL path bridge is enabled, enter a host Windows path here.")
-    config["open_in_ida_bundle_dir"] = prompt("open_in_ida bundle dir", str(config["open_in_ida_bundle_dir"]))
-    print_help("Set gateway_python explicitly to avoid slow runtime auto-discovery.")
-    if str(config["gateway_python"]).strip():
-        print_help(f"Default gateway_python: {config['gateway_python']}")
-    print_help("Press Enter to keep the default. Use '-' to leave gateway_python unset.")
-    config["gateway_python"] = prompt_optional_existing_file(
-        "Gateway Python executable for standalone gateway/proxy",
-        str(config["gateway_python"]),
-        show_default=False,
+    config["open_in_ida_bundle_dir"] = prompt(
+        "open_in_ida bundle dir", str(config["open_in_ida_bundle_dir"])
     )
-    config["request_timeout"] = prompt_int("Request timeout (seconds)", int(config["request_timeout"]))
+    config["open_in_ida_autonomous"] = prompt_bool(
+        "Launch open_in_ida with -A by default",
+        bool(config["open_in_ida_autonomous"]),
+    )
+    config["auto_start"] = prompt_bool(
+        "Auto-start plugin server when IDA loads the plugin",
+        bool(config["auto_start"]),
+    )
+    config["server_name"] = prompt("FastMCP server name", str(config["server_name"]))
+    config["request_timeout"] = prompt_int(
+        "Request timeout (seconds)", int(config["request_timeout"])
+    )
     config["debug"] = prompt_bool("Enable debug logging", bool(config["debug"]))
 
-    if not str(config["gateway_python"]).strip():
-        print_help("gateway_python is unset. Runtime will auto-discover a standalone Python interpreter.")
-
     if not config["enable_http"] and not config["enable_stdio"]:
-        print_warn("Both HTTP and stdio modes are disabled. The plugin will not start transports.")
+        print_warn(
+            "Both HTTP and stdio modes are disabled. The plugin will not start transports."
+        )
         if not prompt_bool("Keep both modes disabled", False):
             config["enable_http"] = True
 
@@ -582,11 +608,20 @@ def print_summary(
         ("enable_stdio", str(config["enable_stdio"])),
         ("enable_unsafe", str(config["enable_unsafe"])),
         ("wsl_path_bridge", str(config["wsl_path_bridge"])),
-        ("gateway bind", f"{config['http_host']}:{config['http_port']}{config['http_path']}"),
+        (
+            "gateway bind",
+            f"{config['http_host']}:{config['http_port']}{config['http_path']}",
+        ),
         ("ida_default_port", str(config["ida_default_port"])),
+        ("ida_host", str(config["ida_host"])),
         ("ida_python", str(config["ida_python"])),
-        ("open_in_ida bundle dir", str(config["open_in_ida_bundle_dir"] or "(direct source path)")),
-        ("gateway_python", str(config["gateway_python"] or "(unset)")),
+        (
+            "open_in_ida bundle dir",
+            str(config["open_in_ida_bundle_dir"] or "(direct source path)"),
+        ),
+        ("open_in_ida autonomous", str(config["open_in_ida_autonomous"])),
+        ("auto_start", str(config["auto_start"])),
+        ("server_name", str(config["server_name"])),
         ("request_timeout", str(config["request_timeout"])),
         ("debug", str(config["debug"])),
     ]
@@ -598,10 +633,19 @@ def print_summary(
 
 def validate_repo_layout() -> None:
     missing = [
-        path for path in (SOURCE_PLUGIN_FILE, SOURCE_PLUGIN_DIR, SOURCE_CONFIG, REQUIREMENTS_FILE) if not path.exists()
+        path
+        for path in (
+            SOURCE_PLUGIN_FILE,
+            SOURCE_PLUGIN_DIR,
+            SOURCE_CONFIG,
+            REQUIREMENTS_FILE,
+        )
+        if not path.exists()
     ]
     if missing:
-        raise FileNotFoundError(f"Repository is missing required files: {', '.join(str(p) for p in missing)}")
+        raise FileNotFoundError(
+            f"Repository is missing required files: {', '.join(str(p) for p in missing)}"
+        )
 
 
 def main() -> int:

@@ -133,7 +133,7 @@ proxy/control 面的包装错误常见格式：
 
 | Tool | Parameters | Request Example | Expected Response |
 | --- | --- | --- | --- |
-| `open_in_ida` | `file_path: str`, `extra_args?: string[]`, `autonomous?: bool` | `{"file_path":"D:\\samples\\a.exe","autonomous":true}` | 成功时 `{status, message, requested_port, launch_bundle, staged_file, launch_target}`；失败时 `{error}` |
+| `open_in_ida` | `file_path: str`, `extra_args?: string[]` | `{"file_path":"D:\\samples\\a.exe"}` | 成功时 `{status, message, requested_port, launch_bundle, staged_file, launch_target}`；失败时 `{error}` |
 | `close_ida` | `save?: bool`, `port?: int`, `timeout?: int` | `{"save":false,"port":10000}` | 直返目标实例 `close_ida` 结果，典型为 `{status:"ok", message:"IDA is closing"}` 或包装错误 |
 | `shutdown_gateway` | `force?: bool`, `timeout?: int` | `{"force":true}` | `{status:"ok", message, forced, instance_count}` 或 `{error}` |
 
@@ -141,10 +141,10 @@ proxy/control 面的包装错误常见格式：
 
 - 启动 IDA 子进程时设置 `IDA_MCP_AUTO_START=1`
 - 同时设置预留端口环境变量 `IDA_MCP_PORT`
-- `autonomous` 默认为 `true`；为 `true` 时追加 `-A`，为 `false` 时不追加
-- 如果 `IDA_MCP_BUNDLE_DIR` 或 `open_in_ida_bundle_dir` 已配置，则会在该目录下创建时间戳子目录
+- `open_in_ida` 会读取 `config.conf` 里的 `open_in_ida_autonomous` 来决定是否追加 `-A`
+- 如果 `open_in_ida_bundle_dir` 已配置，则会在该目录下创建时间戳子目录
 - 若目标旁边存在匹配的 `.i64/.idb`，则优先打开数据库，以避免再次弹出 loader/options 确认框
-- `-A` 会把 IDA 切到 batch/autonomous 启动模式，更适合无人值守自动化；如果你需要正常交互式 GUI 流程，不要把它设成默认
+- `-A` 会把 IDA 切到 batch/autonomous 启动模式，更适合无人值守自动化；如果你需要正常交互式 GUI 流程，请把 `open_in_ida_autonomous=false`
 - `wsl_path_bridge=false` 时，不做 Windows/WSL 路径转换
 - `wsl_path_bridge=true` 时，`ida_path` 和 `open_in_ida_bundle_dir` 视为宿主机 Windows 路径；`open_in_ida` 会把可转换的 WSL 挂载路径转换成 Windows 路径后再启动 IDA
 - `wsl_path_bridge=true` 且最终启动目标不能转换为 Windows 路径时，`open_in_ida` 会返回错误；此时应配置 `open_in_ida_bundle_dir`，先 staging 到 Windows 盘
@@ -155,7 +155,7 @@ proxy/control 面的包装错误常见格式：
 
 以下工具在 Gateway MCP proxy 上也可用，但会额外接受 `port?` 与 `timeout?`。
 
-如果 `enable_unsafe=false` 或环境变量 `IDA_MCP_ENABLE_UNSAFE=0`，则 `py_eval` 与全部 `dbg_*` 工具不会注册。
+如果 `enable_unsafe=false`，则 `py_eval` 与全部 `dbg_*` 工具不会注册。
 
 ### 4.1 Core Tools
 

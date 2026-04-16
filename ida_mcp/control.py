@@ -3,6 +3,7 @@
 This module intentionally avoids importing FastMCP server setup so it can be
 used by command.py, scripts, and tests without triggering proxy initialization.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -50,7 +51,9 @@ def ensure_gateway_running(startup_timeout: float = 3.0) -> dict[str, Any]:
     proxy_ok = registry.ensure_http_proxy_running(startup_timeout=startup_timeout)
     payload = gateway_status_payload()
     payload["ok"] = bool(ok)
-    payload["proxy_ok"] = bool(proxy_ok or not payload.get("proxy", {}).get("enabled", True))
+    payload["proxy_ok"] = bool(
+        proxy_ok or not payload.get("proxy", {}).get("enabled", True)
+    )
     if not payload["ok"]:
         return error_payload(
             "gateway_start_failed",
@@ -60,7 +63,9 @@ def ensure_gateway_running(startup_timeout: float = 3.0) -> dict[str, Any]:
     return payload
 
 
-def restart_gateway(startup_timeout: float = 3.0, force: bool = False) -> dict[str, Any]:
+def restart_gateway(
+    startup_timeout: float = 3.0, force: bool = False
+) -> dict[str, Any]:
     if registry.get_registry_server_status().get("alive"):
         stopped = registry.shutdown_gateway(force=force, timeout=startup_timeout)
         if "error" in stopped:
@@ -102,7 +107,9 @@ def select_target_port(port: Optional[int] = None) -> dict[str, Any]:
                 "No registered IDA instances are available.",
             )
 
-    instance = next((entry for entry in get_instances() if entry.get("port") == selected), None)
+    instance = next(
+        (entry for entry in get_instances() if entry.get("port") == selected), None
+    )
     return {
         "selected_port": selected,
         "instance": instance,
@@ -126,7 +133,9 @@ def call_tool(
     }
     if timeout and timeout > 0:
         body["timeout"] = timeout
-    raw = http_post("/call", body, timeout=(timeout + 15) if timeout and timeout > 0 else None)
+    raw = http_post(
+        "/call", body, timeout=(timeout + 15) if timeout and timeout > 0 else None
+    )
     if not isinstance(raw, dict):
         return error_payload("gateway_unavailable", "Failed to connect to the gateway.")
     if "error" in raw:
@@ -148,13 +157,14 @@ def call_tool(
 def open_ida(
     file_path: str,
     extra_args: Optional[list[str]] = None,
-    autonomous: bool = True,
 ) -> dict[str, Any]:
     from .proxy import lifecycle
 
-    result = lifecycle.open_in_ida(file_path, extra_args=extra_args, autonomous=autonomous)
+    result = lifecycle.open_in_ida(file_path, extra_args=extra_args)
     if "error" in result:
-        return error_payload("ida_open_failed", str(result["error"]), file_path=file_path)
+        return error_payload(
+            "ida_open_failed", str(result["error"]), file_path=file_path
+        )
     return result
 
 
@@ -168,9 +178,13 @@ def close_ida(
     selection = select_target_port(port)
     if "error" in selection:
         return selection
-    result = lifecycle.close_ida(save=save, port=selection["selected_port"], timeout=timeout)
+    result = lifecycle.close_ida(
+        save=save, port=selection["selected_port"], timeout=timeout
+    )
     if "error" in result:
-        return error_payload("ida_close_failed", str(result["error"]), port=selection["selected_port"])
+        return error_payload(
+            "ida_close_failed", str(result["error"]), port=selection["selected_port"]
+        )
     return {
         "selected_port": selection["selected_port"],
         "instance": selection.get("instance"),
@@ -178,7 +192,9 @@ def close_ida(
     }
 
 
-def shutdown_gateway(force: bool = False, timeout: Optional[float] = None) -> dict[str, Any]:
+def shutdown_gateway(
+    force: bool = False, timeout: Optional[float] = None
+) -> dict[str, Any]:
     result = registry.shutdown_gateway(force=force, timeout=timeout)
     if "error" in result:
         return error_payload("gateway_stop_failed", str(result["error"]), result=result)
@@ -195,12 +211,16 @@ def list_ida_instances() -> dict[str, Any]:
     }
 
 
-def list_resources(port: Optional[int] = None, timeout: Optional[int] = None) -> dict[str, Any]:
+def list_resources(
+    port: Optional[int] = None, timeout: Optional[int] = None
+) -> dict[str, Any]:
     selection = select_target_port(port)
     if "error" in selection:
         return selection
     try:
-        resources = asyncio.run(_list_resources_async(selection["selected_port"], timeout=timeout))
+        resources = asyncio.run(
+            _list_resources_async(selection["selected_port"], timeout=timeout)
+        )
     except ModuleNotFoundError as exc:
         return error_payload(
             "fastmcp_missing",
@@ -218,12 +238,16 @@ def list_resources(port: Optional[int] = None, timeout: Optional[int] = None) ->
     return resources
 
 
-def read_resource(uri: str, port: Optional[int] = None, timeout: Optional[int] = None) -> dict[str, Any]:
+def read_resource(
+    uri: str, port: Optional[int] = None, timeout: Optional[int] = None
+) -> dict[str, Any]:
     selection = select_target_port(port)
     if "error" in selection:
         return selection
     try:
-        payload = asyncio.run(_read_resource_async(uri, selection["selected_port"], timeout=timeout))
+        payload = asyncio.run(
+            _read_resource_async(uri, selection["selected_port"], timeout=timeout)
+        )
     except ModuleNotFoundError as exc:
         return error_payload(
             "fastmcp_missing",
@@ -244,11 +268,15 @@ def read_resource(uri: str, port: Optional[int] = None, timeout: Optional[int] =
     return payload
 
 
-async def _list_resources_async(port: int, timeout: Optional[int] = None) -> dict[str, Any]:
+async def _list_resources_async(
+    port: int, timeout: Optional[int] = None
+) -> dict[str, Any]:
     from fastmcp import Client  # type: ignore
 
     client_timeout = timeout if timeout and timeout > 0 else get_request_timeout()
-    async with Client(f"http://127.0.0.1:{port}/mcp/", timeout=client_timeout) as client:  # type: ignore[arg-type]
+    async with Client(
+        f"http://127.0.0.1:{port}/mcp/", timeout=client_timeout
+    ) as client:  # type: ignore[arg-type]
         result = await client.list_resources()
 
     resources: list[dict[str, Any]] = []
@@ -279,11 +307,15 @@ async def _list_resources_async(port: int, timeout: Optional[int] = None) -> dic
     }
 
 
-async def _read_resource_async(uri: str, port: int, timeout: Optional[int] = None) -> dict[str, Any]:
+async def _read_resource_async(
+    uri: str, port: int, timeout: Optional[int] = None
+) -> dict[str, Any]:
     from fastmcp import Client  # type: ignore
 
     client_timeout = timeout if timeout and timeout > 0 else get_request_timeout()
-    async with Client(f"http://127.0.0.1:{port}/mcp/", timeout=client_timeout) as client:  # type: ignore[arg-type]
+    async with Client(
+        f"http://127.0.0.1:{port}/mcp/", timeout=client_timeout
+    ) as client:  # type: ignore[arg-type]
         result = await client.read_resource(uri)
     return {
         "uri": uri,

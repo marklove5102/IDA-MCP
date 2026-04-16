@@ -1,9 +1,10 @@
 """Composition root for IDA-side FastMCP servers."""
+
 from __future__ import annotations
 
-import os
 from typing import Optional
 
+from .config import get_server_name
 from .rpc import get_resources, get_tool_specs
 
 __version__ = "0.2.0"
@@ -34,7 +35,7 @@ def create_mcp_server(
     _ensure_api_modules_loaded()
 
     if name is None:
-        name = os.getenv("IDA_MCP_NAME", "IDA-MCP")
+        name = get_server_name()
 
     mcp = FastMCP(
         name=name,

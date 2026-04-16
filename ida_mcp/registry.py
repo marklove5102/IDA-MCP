@@ -1,4 +1,5 @@
 """Client helpers for the standalone gateway service."""
+
 from __future__ import annotations
 
 import atexit
@@ -18,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from .config import (
     get_http_bind_host,
-    get_gateway_python,
+    get_ida_python,
     get_gateway_internal_host,
     get_gateway_internal_port,
     get_gateway_internal_url,
@@ -42,7 +43,9 @@ _launch_status: Dict[str, Dict[str, Any]] = {
 
 def _gateway_internal_alive(timeout: float = 0.3) -> bool:
     try:
-        with socket.create_connection((get_gateway_internal_host(), get_gateway_internal_port()), timeout=timeout):
+        with socket.create_connection(
+            (get_gateway_internal_host(), get_gateway_internal_port()), timeout=timeout
+        ):
             return True
     except OSError:
         return False
@@ -118,7 +121,9 @@ def _spawn_detached(args: List[str], cwd: str, log_path: Optional[str] = None) -
 def _is_python_executable(path: str | None) -> bool:
     if not path:
         return False
-    path_mod = ntpath if ("\\" in path or (len(path) > 1 and path[1] == ":")) else os.path
+    path_mod = (
+        ntpath if ("\\" in path or (len(path) > 1 and path[1] == ":")) else os.path
+    )
     name = path_mod.basename(path).lower()
     return name.startswith("python")
 
@@ -126,23 +131,23 @@ def _is_python_executable(path: str | None) -> bool:
 def _candidate_python_executables() -> List[str]:
     candidates: List[str] = []
 
-    configured_python = get_gateway_python()
+    configured_python = get_ida_python()
     if configured_python:
         candidates.append(configured_python)
 
-    for env_name in ("PYTHON", "PYTHON3"):
-        value = os.environ.get(env_name)
-        if value:
-            candidates.append(value)
-
-    for value in (getattr(sys, "executable", None), getattr(sys, "_base_executable", None)):
+    for value in (
+        getattr(sys, "executable", None),
+        getattr(sys, "_base_executable", None),
+    ):
         if value:
             candidates.append(value)
 
     def add_candidates_near_root(root: str | None) -> None:
         if not root:
             return
-        path_mod = ntpath if ("\\" in root or (len(root) > 1 and root[1] == ":")) else os.path
+        path_mod = (
+            ntpath if ("\\" in root or (len(root) > 1 and root[1] == ":")) else os.path
+        )
         if path_mod is ntpath or os.name == "nt":
             candidates.extend(
                 [
@@ -165,7 +170,11 @@ def _candidate_python_executables() -> List[str]:
             )
 
     current_exe = getattr(sys, "executable", "") or ""
-    path_mod = ntpath if ("\\" in current_exe or (len(current_exe) > 1 and current_exe[1] == ":")) else os.path
+    path_mod = (
+        ntpath
+        if ("\\" in current_exe or (len(current_exe) > 1 and current_exe[1] == ":"))
+        else os.path
+    )
     current_dir = path_mod.dirname(current_exe)
     add_candidates_near_root(current_dir)
 
@@ -176,7 +185,7 @@ def _candidate_python_executables() -> List[str]:
     ):
         add_candidates_near_root(value)
 
-    for name in (["python.exe"] if os.name == "nt" else ["python3", "python"]):
+    for name in ["python.exe"] if os.name == "nt" else ["python3", "python"]:
         resolved = shutil.which(name)
         if resolved:
             candidates.append(resolved)
@@ -200,7 +209,7 @@ def _resolve_python_executable() -> str:
             return candidate
     raise RuntimeError(
         "No standalone Python interpreter found for gateway launch. "
-        "Set IDA_MCP_PYTHON to a python executable."
+        "Configure ida_python to a python executable."
     )
 
 
@@ -270,7 +279,8 @@ def ensure_registry_server(startup_timeout: float = 3.0) -> bool:
         _set_launch_status(
             "registry_server",
             alive=False,
-            last_error=_tail_log_line(log_path) or "gateway did not become reachable in time",
+            last_error=_tail_log_line(log_path)
+            or "gateway did not become reachable in time",
         )
         return False
 
@@ -294,7 +304,9 @@ def ensure_http_proxy_running(startup_timeout: float = 3.0) -> bool:
 
     with _http_proxy_start_lock:
         if _http_proxy_alive():
-            _set_launch_status("http_proxy", requested=True, enabled=True, alive=True, last_error=None)
+            _set_launch_status(
+                "http_proxy", requested=True, enabled=True, alive=True, last_error=None
+            )
             return True
 
         if not ensure_registry_server():
@@ -321,7 +333,9 @@ def ensure_http_proxy_running(startup_timeout: float = 3.0) -> bool:
             last_error=None,
         )
 
-        status = _request_json("POST", "/ensure_proxy", {}, timeout=1.0, ensure_server=False)
+        status = _request_json(
+            "POST", "/ensure_proxy", {}, timeout=1.0, ensure_server=False
+        )
         if isinstance(status, dict):
             _set_launch_status(
                 "http_proxy",
@@ -372,7 +386,9 @@ def _request_json(
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(req, timeout=get_request_timeout() if timeout is None else timeout) as resp:
+        with urllib.request.urlopen(
+            req, timeout=get_request_timeout() if timeout is None else timeout
+        ) as resp:
             return json.loads(resp.read().decode("utf-8") or "null")
     except urllib.error.HTTPError as exc:
         try:
@@ -404,6 +420,89 @@ def _format_registry_server_failure() -> str:
     return ", ".join(parts)
 
 
+def _register_instance_payload(
+    pid: int,
+    port: int,
+    input_file: str | None,
+    idb_path: str | None,
+    *,
+    ready: bool,
+    lifecycle_state: str,
+    started: Optional[float] = None,
+) -> dict[str, Any]:
+    return {
+        "pid": pid,
+        "port": port,
+        "host": "127.0.0.1",
+        "input_file": input_file,
+        "idb": idb_path,
+        "started": time.time() if started is None else started,
+        "python": sys.version.split()[0],
+        "ready": bool(ready),
+        "lifecycle_state": lifecycle_state,
+    }
+
+
+def register_pending_instance(
+    pid: int,
+    port: int,
+    input_file: str | None,
+    idb_path: str | None,
+    *,
+    lifecycle_state: str = "starting",
+) -> bool:
+    """Register a launched-but-not-ready IDA process with the gateway."""
+    if not is_stdio_enabled() and not is_http_enabled():
+        return False
+    if not ensure_registry_server():
+        return False
+    payload = _register_instance_payload(
+        pid,
+        port,
+        input_file,
+        idb_path,
+        ready=False,
+        lifecycle_state=lifecycle_state,
+    )
+    result = _request_json(
+        "POST", "/register", payload, timeout=0.5, ensure_server=False
+    )
+    return isinstance(result, dict) and result.get("status") == "ok"
+
+
+def update_instance_status(
+    *,
+    pid: Optional[int] = None,
+    port: Optional[int] = None,
+    lifecycle_state: Optional[str] = None,
+    ready: Optional[bool] = None,
+    main_thread_last_tick_at: Optional[float] = None,
+    main_thread_lag_seconds: Optional[float] = None,
+) -> bool:
+    """Apply a partial status update to a registered instance."""
+    if pid is None and port is None:
+        return False
+    if not ensure_registry_server():
+        return False
+    payload: dict[str, Any] = {}
+    if pid is not None:
+        payload["pid"] = pid
+    if port is not None:
+        payload["port"] = port
+    if lifecycle_state is not None:
+        payload["lifecycle_state"] = lifecycle_state
+    if ready is not None:
+        payload["ready"] = bool(ready)
+    if main_thread_last_tick_at is not None:
+        payload["main_thread_last_tick_at"] = float(main_thread_last_tick_at)
+    if main_thread_lag_seconds is not None:
+        payload["main_thread_lag_seconds"] = float(main_thread_lag_seconds)
+    result = _request_json(
+        "POST", "/update_instance", payload, timeout=0.5, ensure_server=False
+    )
+    return isinstance(result, dict) and result.get("status") == "ok"
+
+
 def init_and_register(port: int, input_file: str | None, idb_path: str | None) -> None:
     """Register the current IDA instance with the standalone gateway."""
     if not is_stdio_enabled() and not is_http_enabled():
@@ -414,18 +513,19 @@ def init_and_register(port: int, input_file: str | None, idb_path: str | None) -
             f"({_format_registry_server_failure()})"
         )
 
-    payload = {
-        "pid": _self_pid,
-        "port": port,
-        "host": "127.0.0.1",
-        "input_file": input_file,
-        "idb": idb_path,
-        "started": time.time(),
-        "python": sys.version.split()[0],
-    }
+    payload = _register_instance_payload(
+        _self_pid,
+        port,
+        input_file,
+        idb_path,
+        ready=True,
+        lifecycle_state="ready",
+    )
 
     for _ in range(10):
-        result = _request_json("POST", "/register", payload, timeout=0.5, ensure_server=False)
+        result = _request_json(
+            "POST", "/register", payload, timeout=0.5, ensure_server=False
+        )
         if isinstance(result, dict) and result.get("status") == "ok":
             _register_atexit_once()
             return
