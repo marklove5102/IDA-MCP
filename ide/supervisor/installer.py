@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from shared.paths import get_assets_root, get_repo_root
+from shared.paths import get_ida_mcp_resources_dir
 
 from .models import EnvironmentProbe, InstallationActionResult, InstallationCheck
 
@@ -135,7 +135,6 @@ print(json.dumps(result))
 def _requirements_file_candidates(repo_root: Path) -> list[Path]:
     return [
         repo_root / "requirements.txt",
-        get_assets_root() / "ida_mcp_requirements.txt",
     ]
 
 
@@ -148,7 +147,7 @@ def _resolve_requirements_path(repo_root: Path) -> Path:
 
 class EnvironmentInstaller:
     def __init__(self, repo_root: Path | None = None) -> None:
-        self._repo_root = repo_root or get_repo_root()
+        self._repo_root = repo_root or get_ida_mcp_resources_dir()
 
     def probe(self) -> EnvironmentProbe:
         warnings: list[str] = []

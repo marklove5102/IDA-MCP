@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from shared.paths import ensure_directory, get_repo_root
+from shared.paths import ensure_directory, get_ida_mcp_resources_dir
 
 from supervisor.models import ConfigStoreInfo, IdaMcpConfig
 
@@ -16,25 +16,8 @@ _ASSIGNMENT_RE = re.compile(
     r"^(?P<indent>\s*)(?P<comment>#\s*)?(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>.*)$"
 )
 
-_KNOWN_KEYS = {
-    "enable_stdio",
-    "enable_http",
-    "enable_unsafe",
-    "wsl_path_bridge",
-    "http_host",
-    "http_port",
-    "http_path",
-    "ida_default_port",
-    "ida_host",
-    "ida_path",
-    "ida_python",
-    "open_in_ida_bundle_dir",
-    "open_in_ida_autonomous",
-    "auto_start",
-    "server_name",
-    "request_timeout",
-    "debug",
-}
+# Derive known keys from the single source of truth in IdaMcpConfig.
+_KNOWN_KEYS = IdaMcpConfig.field_names()
 
 
 @dataclass(slots=True)
@@ -49,13 +32,13 @@ class _ParsedLine:
 
 
 def _default_config_candidates(plugin_dir: Path | None = None) -> list[Path]:
-    repo_root = get_repo_root()
+    resources_dir = get_ida_mcp_resources_dir()
     candidates: list[Path] = []
     if plugin_dir:
         candidates.append(plugin_dir / "ida_mcp" / "config.conf")
     candidates.extend(
         [
-            repo_root / "ida_mcp" / "config.conf",
+            resources_dir / "ida_mcp" / "config.conf",
         ]
     )
     return candidates

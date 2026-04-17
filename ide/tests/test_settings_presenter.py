@@ -25,7 +25,6 @@ def test_snapshot_to_form_state_maps_settings_fields() -> None:
         ide_config=IdeConfig(
             language="zh",
             plugin_dir="E:/plugins",
-            python_path="E:/Python/python.exe",
             request_timeout=45,
         ),
         ida_mcp_config=IdaMcpConfig(
@@ -60,12 +59,11 @@ def test_snapshot_to_form_state_maps_settings_fields() -> None:
     assert state.auto_start is True
     assert state.server_name == "IDA-MCP-Test"
     assert state.ida_request_timeout == 90
-    assert effective_install_python_path(snapshot) == "E:/Python/python.exe"
+    assert effective_install_python_path(snapshot) == "E:/IDA/python.exe"
 
 
 def test_form_state_to_updates_applies_defaults_and_cleans_values() -> None:
     state = SettingsFormState(
-        python_path="  ",
         plugin_dir=" E:/plugins ",
         language="en",
         ide_request_timeout=30,
@@ -90,7 +88,6 @@ def test_form_state_to_updates_applies_defaults_and_cleans_values() -> None:
 
     ide_updates, ida_mcp_updates = form_state_to_updates(state)
 
-    assert ide_updates["python_path"] is None
     assert ide_updates["plugin_dir"] == "E:/plugins"
     assert ide_updates["request_timeout"] == 30
     assert ida_mcp_updates["http_host"] == "0.0.0.0"

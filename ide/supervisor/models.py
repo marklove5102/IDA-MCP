@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import locale
-from dataclasses import asdict, dataclass, field
+import os
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
-from typing import Any
+from pathlib import Path
+from typing import Any, ClassVar
 
 
 class HealthState(str, Enum):
@@ -42,6 +44,20 @@ def _default_language() -> str:
     return "en"
 
 
+def _default_ida_plugin_dir() -> str:
+    """Return the default IDA global plugins directory.
+
+    Windows: %APPDATA%\\Hex-Rays\\IDA Pro\\plugins
+    Linux/macOS: ~/.idapro/plugins
+    """
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA") or os.path.join(
+            os.path.expanduser("~"), "AppData", "Roaming"
+        )
+        return str(Path(appdata) / "Hex-Rays" / "IDA Pro" / "plugins")
+    return str(Path.home() / ".idapro" / "plugins")
+
+
 @dataclass(slots=True)
 class IdeConfig:
     gateway_host: str = DEFAULT_GATEWAY_HOST
@@ -49,10 +65,7 @@ class IdeConfig:
     gateway_path: str = DEFAULT_GATEWAY_PATH
     request_timeout: int = 30
     auto_start_gateway: bool = False
-    python_path: str | None = None
-    plugin_dir: str | None = None
-    ida_path: str | None = None
-    ida_python: str | None = None
+    plugin_dir: str = field(default_factory=_default_ida_plugin_dir)
     language: str = field(default_factory=_default_language)
     notes: str | None = None
 
@@ -64,7 +77,13 @@ class IdeConfig:
         if not data:
             return cls()
         allowed = {field.name for field in cls.__dataclass_fields__.values()}
-        return cls(**{key: value for key, value in data.items() if key in allowed})
+        return cls(
+            **{
+                key: value
+                for key, value in data.items()
+                if key in allowed and value is not None
+            }
+        )
 
 
 @dataclass(slots=True)
@@ -88,6 +107,62 @@ class IdaMcpConfig:
     debug: bool = False
     config_path: str | None = None
 
+    # Field groups for config rendering order and comments.
+    FIELD_GROUPS: ClassVar[list[tuple[str, list[str]]]] = [
+        (
+            "Transport switches",
+            [
+                "enable_stdio",
+                "enable_http",
+                "enable_unsafe",
+                "wsl_path_bridge",
+            ],
+        ),
+        (
+            "HTTP gateway settings",
+            [
+                "http_host",
+                "http_port",
+                "http_path",
+            ],
+        ),
+        (
+            "IDA instance settings",
+            [
+                "ida_default_port",
+                "ida_host",
+                "ida_path",
+                "ida_python",
+                "open_in_ida_bundle_dir",
+                "open_in_ida_autonomous",
+                "auto_start",
+                "server_name",
+            ],
+        ),
+        (
+            "General settings",
+            [
+                "request_timeout",
+                "debug",
+            ],
+        ),
+    ]
+
+    @classmethod
+    def field_names(cls) -> set[str]:
+        """Return the set of config field names (excludes config_path)."""
+        return {f.name for f in fields(cls) if f.name != "config_path"}
+
+    @classmethod
+    def defaults(cls) -> dict[str, Any]:
+        """Return a dict of default values for all config fields (excludes config_path)."""
+        result: dict[str, Any] = {}
+        for f in fields(cls):
+            if f.name == "config_path":
+                continue
+            result[f.name] = f.default
+        return result
+
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data.pop("config_path", None)
@@ -97,7 +172,7 @@ class IdaMcpConfig:
     def from_dict(cls, data: dict[str, Any] | None) -> "IdaMcpConfig":
         if not data:
             return cls()
-        allowed = {field.name for field in cls.__dataclass_fields__.values()}
+        allowed = cls.field_names() | {"config_path"}
         return cls(**{key: value for key, value in data.items() if key in allowed})
 
 

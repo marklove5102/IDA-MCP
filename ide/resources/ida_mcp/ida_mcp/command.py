@@ -5,8 +5,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
 import sys
 from typing import Any, Sequence
+
+# Ensure the parent directory (containing the ida_mcp package) is on sys.path
+# so that `from ida_mcp import ...` works regardless of how this script is invoked.
+_repo_root = str(pathlib.Path(__file__).resolve().parents[1])
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+# Remove the script's own directory from sys.path.  When running
+# ``python path/to/command.py`` Python auto-adds the script's directory
+# (i.e. ``.../ida_mcp/``) to sys.path[0].  This causes subpackages like
+# ``ida_mcp/http/`` to shadow the stdlib ``http`` package, breaking
+# ``import http.client``, ``import urllib.request``, etc.
+_script_dir = str(pathlib.Path(__file__).resolve().parent)
+sys.path = [p for p in sys.path if p != _script_dir]
 
 from ida_mcp import control
 

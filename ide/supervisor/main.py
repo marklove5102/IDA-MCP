@@ -31,7 +31,6 @@ def build_parser() -> argparse.ArgumentParser:
     stop_parser.add_argument("--force", action="store_true")
 
     config_parser = subparsers.add_parser("set-config", help="Update stored config")
-    config_parser.add_argument("--python-path")
     config_parser.add_argument("--plugin-dir")
     config_parser.add_argument("--ida-path")
     config_parser.add_argument("--ida-python")
@@ -63,17 +62,23 @@ def main() -> int:
         _print_payload(manager.stop_gateway(force=bool(args.force)))
         return 0
     if args.command == "set-config":
-        updates = {
-            "python_path": args.python_path,
+        ide_updates: dict[str, Any] = {
             "plugin_dir": args.plugin_dir,
-            "ida_path": args.ida_path,
-            "ida_python": args.ida_python,
             "request_timeout": args.request_timeout,
             "notes": args.notes,
         }
         if args.auto_start_gateway is not None:
-            updates["auto_start_gateway"] = args.auto_start_gateway == "true"
-        _print_payload(manager.update_config(**updates))
+            ide_updates["auto_start_gateway"] = args.auto_start_gateway == "true"
+
+        ida_mcp_updates: dict[str, Any] = {}
+        if args.ida_path is not None:
+            ida_mcp_updates["ida_path"] = args.ida_path
+        if args.ida_python is not None:
+            ida_mcp_updates["ida_python"] = args.ida_python
+
+        if ida_mcp_updates:
+            manager.update_ida_mcp_config(**ida_mcp_updates)
+        _print_payload(manager.update_config(**ide_updates))
         return 0
     parser.error(f"unsupported command: {args.command}")
     return 2

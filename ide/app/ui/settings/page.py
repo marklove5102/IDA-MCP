@@ -119,7 +119,6 @@ class SettingsPage(QWidget):
         self._install_plugin_dir = QLineEdit()
         self._install_plugin_dir.setReadOnly(True)
 
-        self._python_path = QLineEdit()
         self._plugin_dir = QLineEdit()
         self._language_combo = NoWheelComboBox()
         self._ide_request_timeout = NoWheelSpinBox()
@@ -444,6 +443,31 @@ class SettingsPage(QWidget):
     def reload(self) -> None:
         self._apply_snapshot(self._settings_service.load())
 
+    # ------------------------------------------------------------------
+    # Widget ↔ field mapping for IdaMcpConfig fields.
+    # Each entry: (form_field_name, widget_attr_name, widget_type)
+    # widget_type: "checkbox" | "lineedit" | "spinbox"
+    # ------------------------------------------------------------------
+    _IDA_FIELD_BINDINGS: list[tuple[str, str, str]] = [
+        ("enable_http", "_enable_http", "checkbox"),
+        ("enable_stdio", "_enable_stdio", "checkbox"),
+        ("enable_unsafe", "_enable_unsafe", "checkbox"),
+        ("wsl_path_bridge", "_wsl_path_bridge", "checkbox"),
+        ("http_host", "_http_host", "lineedit"),
+        ("http_port", "_http_port", "spinbox"),
+        ("http_path", "_http_path", "lineedit"),
+        ("ida_default_port", "_ida_default_port", "spinbox"),
+        ("ida_host", "_ida_host", "lineedit"),
+        ("ida_path", "_ida_path", "lineedit"),
+        ("ida_python", "_ida_python", "lineedit"),
+        ("open_in_ida_bundle_dir", "_open_in_ida_bundle_dir", "lineedit"),
+        ("open_in_ida_autonomous", "_open_in_ida_autonomous", "checkbox"),
+        ("auto_start", "_auto_start", "checkbox"),
+        ("server_name", "_server_name", "lineedit"),
+        ("ida_request_timeout", "_ida_request_timeout", "spinbox"),
+        ("debug", "_debug", "checkbox"),
+    ]
+
     def _apply_snapshot(self, snapshot) -> None:
         previous_language = self._language
         self._language = normalize_language(snapshot.ide_config.language)
@@ -451,7 +475,7 @@ class SettingsPage(QWidget):
         self._refresh_language_combo()
 
         form_state = snapshot_to_form_state(snapshot)
-        self._python_path.setText(form_state.python_path)
+        # IDE-owned fields (manual)
         self._plugin_dir.setText(form_state.plugin_dir)
         self._ide_request_timeout.setValue(form_state.ide_request_timeout)
         self._install_python_path.setText(effective_install_python_path(snapshot))
@@ -460,23 +484,17 @@ class SettingsPage(QWidget):
         self._install_notes.setPlaceholderText(self._t("settings.install.placeholder"))
         self._apply_installation_check(self._settings_service.check_installation())
 
-        self._enable_http.setChecked(form_state.enable_http)
-        self._enable_stdio.setChecked(form_state.enable_stdio)
-        self._enable_unsafe.setChecked(form_state.enable_unsafe)
-        self._wsl_path_bridge.setChecked(form_state.wsl_path_bridge)
-        self._http_host.setText(form_state.http_host)
-        self._http_port.setValue(form_state.http_port)
-        self._http_path.setText(form_state.http_path)
-        self._ida_default_port.setValue(form_state.ida_default_port)
-        self._ida_host.setText(form_state.ida_host)
-        self._ida_path.setText(form_state.ida_path)
-        self._ida_python.setText(form_state.ida_python)
-        self._open_in_ida_bundle_dir.setText(form_state.open_in_ida_bundle_dir)
-        self._open_in_ida_autonomous.setChecked(form_state.open_in_ida_autonomous)
-        self._auto_start.setChecked(form_state.auto_start)
-        self._server_name.setText(form_state.server_name)
-        self._ida_request_timeout.setValue(form_state.ida_request_timeout)
-        self._debug.setChecked(form_state.debug)
+        # IdaMcpConfig fields (data-driven via binding table)
+        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
+            widget = getattr(self, widget_attr)
+            value = getattr(form_state, field_name)
+            if widget_type == "checkbox":
+                widget.setChecked(value)
+            elif widget_type == "spinbox":
+                widget.setValue(value)
+            else:
+                widget.setText(str(value))
+
         self._sync_wsl_bridge_fields()
         if self._language != previous_language:
             self.language_changed.emit(self._language)
@@ -550,29 +568,20 @@ class SettingsPage(QWidget):
             button.setEnabled(enabled)
 
     def _collect_form_state(self) -> SettingsFormState:
-        return SettingsFormState(
-            python_path=self._python_path.text(),
-            plugin_dir=self._plugin_dir.text(),
-            language=str(self._language_combo.currentData() or self._language),
-            ide_request_timeout=self._ide_request_timeout.value(),
-            enable_http=self._enable_http.isChecked(),
-            enable_stdio=self._enable_stdio.isChecked(),
-            enable_unsafe=self._enable_unsafe.isChecked(),
-            wsl_path_bridge=self._wsl_path_bridge.isChecked(),
-            http_host=self._http_host.text(),
-            http_port=self._http_port.value(),
-            http_path=self._http_path.text(),
-            ida_default_port=self._ida_default_port.value(),
-            ida_host=self._ida_host.text(),
-            ida_path=self._ida_path.text(),
-            ida_python=self._ida_python.text(),
-            open_in_ida_bundle_dir=self._open_in_ida_bundle_dir.text(),
-            open_in_ida_autonomous=self._open_in_ida_autonomous.isChecked(),
-            auto_start=self._auto_start.isChecked(),
-            server_name=self._server_name.text(),
-            ida_request_timeout=self._ida_request_timeout.value(),
-            debug=self._debug.isChecked(),
-        )
+        data: dict[str, object] = {
+            "plugin_dir": self._plugin_dir.text(),
+            "language": str(self._language_combo.currentData() or self._language),
+            "ide_request_timeout": self._ide_request_timeout.value(),
+        }
+        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
+            widget = getattr(self, widget_attr)
+            if widget_type == "checkbox":
+                data[field_name] = widget.isChecked()
+            elif widget_type == "spinbox":
+                data[field_name] = widget.value()
+            else:
+                data[field_name] = widget.text()
+        return SettingsFormState.from_flat_dict(data)
 
     def _build_config_group(
         self,
@@ -844,16 +853,3 @@ class SettingsPage(QWidget):
 
         if not show_other_options:
             return
-
-        self._advanced_runtime_group = self._build_config_group(
-            self._t("settings.group.runtime"),
-            self._t("settings.group.runtime.desc"),
-            [
-                self._build_field_row(
-                    self._t("settings.field.python_path"),
-                    self._t("settings.field.python_path.desc"),
-                    self._path_field(self._python_path, self._browse_file),
-                ),
-            ],
-        )
-        self._advanced_layout.addWidget(self._advanced_runtime_group)

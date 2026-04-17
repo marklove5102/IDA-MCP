@@ -54,5 +54,5 @@ class SettingsService:
     def check_installation(self) -> InstallationCheck:
         return self._supervisor_client.check_installation()
 
-    def reinstall(self) -> InstallationActionResult:
-        return self._supervisor_client.reinstall()
+    def reinstall(self, *, on_progress=None) -> InstallationActionResult:
+        return self._supervisor_client.reinstall(on_progress=on_progress)

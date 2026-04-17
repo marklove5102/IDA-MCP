@@ -64,22 +64,23 @@ class _GatewayWorker(QThread):
         self._supervisor_client = supervisor_client
 
     def run(self) -> None:
+        log = self.progress.emit
         try:
             if self._action == "refresh":
-                self.progress.emit("--- Refreshing status ---")
-                self._supervisor_client.gateway_status(log=self.progress.emit)
+                log("--- Refreshing status ---")
+                self._supervisor_client.get_snapshot(log=log)
             elif self._action == "start":
-                self.progress.emit("--- Starting gateway ---")
-                self._supervisor_client.start_gateway(log=self.progress.emit)
+                log("--- Starting gateway ---")
+                self._supervisor_client.start_gateway(log=log)
             elif self._action == "stop":
-                self.progress.emit("--- Stopping gateway ---")
-                self._supervisor_client.stop_gateway(log=self.progress.emit)
-            self.progress.emit("--- Refreshing final status ---")
-            self.finished.emit(self._supervisor_client.get_snapshot())
+                log("--- Stopping gateway ---")
+                self._supervisor_client.stop_gateway(log=log)
+            log("--- Refreshing final status ---")
+            self.finished.emit(self._supervisor_client.get_snapshot(log=log))
         except Exception as exc:
-            self.progress.emit(f"Error: {exc}")
+            log(f"Error: {exc}")
             try:
-                self.finished.emit(self._supervisor_client.get_snapshot())
+                self.finished.emit(self._supervisor_client.get_snapshot(log=log))
             except Exception:
                 self.finished.emit(None)
 
@@ -367,7 +368,12 @@ class MainWindow(QMainWindow):
             "stop_gateway": stop_gateway_action,
         }
 
-        self._supervisor_menu = None
+        menu_bar = self.menuBar()
+        self._supervisor_menu = menu_bar.addMenu(self._t("main.menu.supervisor"))
+        self._supervisor_menu.addAction(refresh_action)
+        self._supervisor_menu.addSeparator()
+        self._supervisor_menu.addAction(start_gateway_action)
+        self._supervisor_menu.addAction(stop_gateway_action)
 
     def _build_panel(self, title_key: str, widget: QWidget, panel_key: str) -> QWidget:
         container = QFrame()
@@ -568,6 +574,9 @@ class MainWindow(QMainWindow):
             self._t("main.action.start_gateway")
         )
         self._menu_actions["stop_gateway"].setText(self._t("main.action.stop_gateway"))
+
+        if self._supervisor_menu is not None:
+            self._supervisor_menu.setTitle(self._t("main.menu.supervisor"))
 
         if self._snapshot is not None:
             self._render_snapshot(self._snapshot)

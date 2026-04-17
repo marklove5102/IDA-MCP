@@ -41,7 +41,7 @@ def test_settings_service_normalizes_language_without_rewriting_boundaries() -> 
     snapshot = SettingsService(client).load()
 
     assert snapshot.ide_config.language == "zh"
-    assert snapshot.ide_config.python_path is None
+    assert snapshot.ide_config.plugin_dir  # has default IDA plugins path
 
 
 def test_settings_service_saves_normalized_updates() -> None:
@@ -51,9 +51,10 @@ def test_settings_service_saves_normalized_updates() -> None:
     )
 
     SettingsService(client).save(
-        ide_updates={"python_path": "C:/Python/python.exe", "language": "ZH"},
+        ide_updates={"plugin_dir": "C:/plugins", "language": "ZH"},
         ida_mcp_updates={"ida_path": "C:/IDA/ida64.exe", "debug": True},
     )
 
     assert client.ide_updates[-1]["language"] == "zh"
+    assert client.ide_updates[-1]["plugin_dir"] == "C:/plugins"
     assert client.ida_updates[-1]["ida_path"] == "C:/IDA/ida64.exe"

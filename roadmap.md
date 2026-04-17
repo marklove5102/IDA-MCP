@@ -1,32 +1,23 @@
 # IDA-MCP Repository Roadmap Index
 
-仓库现已拆分为多个主要子项目，各自维护独立的规划文档：
+仓库以 `ide/` 子项目为主体，`ida_mcp` 作为受管资源打包在 `ide/resources/` 中。
 
-- `ida_mcp/roadmap.md`：`ida-mcp` 核心能力层 roadmap
-- `ide/roadmap.md`：PySide6 桌面 IDE roadmap
+## 子项目
 
-## 子项目定位
+### `ide/` — 主项目
 
-### `ida_mcp/`
+PySide6 桌面 IDE，负责安装、配置、状态监控和 gateway 生命周期管理。
 
-负责：
+规划文档：`ide/roadmap.md`
 
-- IDA 插件入口
-- MCP / HTTP proxy / gateway
-- 多实例生命周期管理
-- 分析、修改、建模、资源与控制能力
+### `ide/resources/ida_mcp/` — 受管资源
 
-### `ide/`
+IDA 插件源码（`ida_mcp.py` + `ida_mcp/` 包），安装时由 IDE 复制到 IDA plugins 目录。包含 `command.py` CLI 和 `registry_server.py` gateway 服务器。
 
-负责：
-
-- PySide6 桌面 IDE
-- Supervisor / 安装与状态检查
-- 多 Agent 审计工作台
-- SQLite 持久化、事件流、checkpoint、文件查看与编辑
+规划文档：`ide/resources/ida_mcp/ida_mcp/roadmap.md`
 
 ## 阅读顺序
 
-1. 先看 `project.md` 了解仓库级项目地图
-2. 看 `ida_mcp/project.md` 与 `ida_mcp/roadmap.md` 理解核心能力层
-3. 看 `ide/project.md` 与 `ide/roadmap.md` 理解桌面 IDE 规划
+1. `project.md` — 仓库级项目地图
+2. `ide/project.md` + `ide/roadmap.md` — IDE 子项目结构与规划
+3. `README.md` — 用户文档

@@ -9,23 +9,19 @@ from shared.runtime import get_packaging_root as get_runtime_packaging_root
 from shared.runtime import get_runtime_root
 
 
-def get_repo_root() -> Path:
-    """Return the monorepo root when present, otherwise the IDE project root."""
-    project_root = get_project_root()
-    candidate = project_root.parent
-    if (candidate / "ida_mcp.py").exists() and (candidate / "ida_mcp").exists():
-        return candidate
-    return project_root
-
-
 def get_project_root() -> Path:
     """Return the IDE project root for both dev and packaged modes."""
     return get_runtime_root()
 
 
-def get_assets_root() -> Path:
-    """Return the assets directory for the current runtime mode."""
-    return get_project_root() / "app" / "assets"
+def get_resources_root() -> Path:
+    """Return the bundled resources directory (contains ida_mcp source, etc.)."""
+    return get_project_root() / "resources"
+
+
+def get_ida_mcp_resources_dir() -> Path:
+    """Return the ida_mcp bundled resource directory."""
+    return get_resources_root() / "ida_mcp"
 
 
 def get_logs_root() -> Path:

@@ -49,23 +49,14 @@ def test_check_installation_reports_missing_requirements(tmp_path: Path) -> None
     assert result.missing_requirements == ["definitely-not-installed-package-xyz==1.0"]
 
 
-def test_check_installation_falls_back_to_bundled_requirements(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_check_installation_uses_repo_root_requirements(tmp_path: Path) -> None:
     plugin_dir = tmp_path / "plugin"
     plugin_dir.mkdir()
     (plugin_dir / "ida_mcp.py").write_text("# plugin\n", encoding="utf-8")
     (plugin_dir / "ida_mcp").mkdir()
 
-    bundled_assets = tmp_path / "app" / "assets"
-    bundled_assets.mkdir(parents=True)
-    bundled_requirements = bundled_assets / "ida_mcp_requirements.txt"
-    bundled_requirements.write_text("pytest\n", encoding="utf-8")
-
-    monkeypatch.setattr(
-        "supervisor.installer.get_assets_root",
-        lambda: bundled_assets,
-    )
+    repo_requirements = tmp_path / "requirements.txt"
+    repo_requirements.write_text("pytest\n", encoding="utf-8")
 
     installer = EnvironmentInstaller(repo_root=tmp_path)
     result = installer.check_installation(
@@ -74,7 +65,7 @@ def test_check_installation_falls_back_to_bundled_requirements(
     )
 
     assert result.requirements == ["pytest"]
-    assert result.requirements_path == str(bundled_requirements)
+    assert result.requirements_path == str(repo_requirements)
 
 
 def test_repair_config_copies_default_template(tmp_path: Path) -> None:

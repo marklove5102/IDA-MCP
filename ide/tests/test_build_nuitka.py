@@ -30,7 +30,7 @@ def test_build_command_supports_onefile() -> None:
     assert "--standalone" not in command
 
 
-def test_build_command_includes_ida_mcp_requirements_file() -> None:
+def test_build_command_includes_resources_directory() -> None:
     command = build_command()
 
-    assert any("app/assets/ida_mcp_requirements.txt" in item for item in command)
+    assert any("resources" in item for item in command)

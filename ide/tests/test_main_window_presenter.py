@@ -17,7 +17,6 @@ def test_main_window_view_model_builds_cards_and_tree_rows() -> None:
     i18n = I18n("en")
     config = IdeConfig(
         plugin_dir="E:/plugins",
-        python_path="python",
         notes="pending setup",
         request_timeout=40,
     )
@@ -64,6 +63,7 @@ def test_main_window_view_model_builds_cards_and_tree_rows() -> None:
         "supervisor",
         "gateway",
         "environment",
+        "instances",
     ]
     assert view_model.status_cards[1].state_property == "warning"
     assert "State: stopped" in view_model.status_cards[1].details

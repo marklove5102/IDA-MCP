@@ -106,10 +106,14 @@ class _StubSupervisorClient(SupervisorClient):
 
 def test_main_window_retranslates_core_shell_labels() -> None:
     _app()
-    window = MainWindow(_StubSupervisorClient(language="zh"))
+    client = _StubSupervisorClient(language="zh")
+    window = MainWindow(client)
+
+    # Synchronously inject a snapshot so status bar and cards are populated.
+    window._on_snapshot_ready(client.get_snapshot())
 
     assert window._activity_items["chat"].toolTip() == "聊天"
-    assert window._status_buttons["stop_gateway"].text() == "停止 Gateway"
+    assert window._status_buttons["toggle_gateway"].text() == "启动 Gateway"
     assert window._supervisor_menu.title() == "监督器"
     assert window._status_card_titles["environment"].text() == "环境"
     assert window.statusBar().currentMessage() == "快照已刷新"
@@ -117,7 +121,7 @@ def test_main_window_retranslates_core_shell_labels() -> None:
     window._settings_view.language_changed.emit("en")
 
     assert window._activity_items["chat"].toolTip() == "Chat"
-    assert window._status_buttons["stop_gateway"].text() == "Stop Gateway"
+    assert window._status_buttons["toggle_gateway"].text() == "Start Gateway"
     assert window._supervisor_menu.title() == "Supervisor"
     assert window._status_card_titles["environment"].text() == "Environment"
 

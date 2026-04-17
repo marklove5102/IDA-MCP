@@ -19,10 +19,10 @@ _bootstrap_project_root()
 
 from shared.paths import (
     ensure_directory,
-    get_assets_root,
+    get_ida_mcp_resources_dir,
     get_nuitka_output_root,
     get_project_root,
-    get_repo_root,
+    get_resources_root,
 )
 
 
@@ -30,7 +30,7 @@ def build_command(*, onefile: bool = False) -> list[str]:
     project_root = get_project_root()
     launcher = project_root / "launcher.py"
     output_dir = ensure_directory(get_nuitka_output_root())
-    assets_root = get_assets_root()
+    resources_root = get_resources_root()
     command = [
         sys.executable,
         "-m",
@@ -47,18 +47,9 @@ def build_command(*, onefile: bool = False) -> list[str]:
         f"--output-dir={output_dir}",
     ]
 
-    if assets_root.exists() and any(assets_root.iterdir()):
-        command.append(f"--include-data-dir={assets_root}=app/assets")
-
-    requirements_path = get_repo_root() / "requirements.txt"
-    if requirements_path.exists():
-        command.append(
-            f"--include-data-file={requirements_path}=app/assets/ida_mcp_requirements.txt"
-        )
-
-    icon_path = assets_root / "app.ico"
-    if icon_path.exists():
-        command.append(f"--windows-icon-from-ico={icon_path}")
+    # Include the bundled ida_mcp resources
+    if resources_root.exists() and any(resources_root.iterdir()):
+        command.append(f"--include-data-dir={resources_root}=resources")
 
     command.append(str(launcher))
     return command

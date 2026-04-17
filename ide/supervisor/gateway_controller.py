@@ -46,9 +46,11 @@ class GatewayController:
         self,
         config_store: IdeConfigStore | None = None,
         log: Callable[[str], None] | None = None,
+        python_path: str | None = None,
     ) -> None:
         self.config_store = config_store or IdeConfigStore()
         self._log = log
+        self._python_path = python_path
 
     def _log_msg(self, msg: str) -> None:
         if self._log:
@@ -275,59 +277,100 @@ class GatewayController:
     # ------------------------------------------------------------------
     def _subprocess_start(self) -> GatewayStatus:
         config = self.config_store.load()
-        if not config.python_path or not config.plugin_dir:
-            msg = "Set python_path and plugin_dir before starting the gateway."
+        if not config.plugin_dir:
+            msg = "Set plugin_dir before starting the gateway."
             self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
-        python_path = Path(config.python_path)
         plugin_dir = Path(config.plugin_dir)
-        if not python_path.exists() or not plugin_dir.exists():
-            msg = f"python_path ({python_path}) or plugin_dir ({plugin_dir}) does not exist."
+        if not plugin_dir.exists():
+            msg = f"plugin_dir ({plugin_dir}) does not exist."
             self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
-        env = dict(os.environ)
-        current = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = (
-            str(plugin_dir) if not current else f"{plugin_dir}{os.pathsep}{current}"
-        )
+        host, port, path = self._gateway_params()
 
-        script = (
-            "import json; from ida_mcp import control; "
-            "print(json.dumps(control.ensure_gateway_running(), ensure_ascii=False, default=str))"
-        )
-        cmd = [str(python_path), "-c", script]
-        self._log_msg(f"$ {' '.join(cmd)}")
-        try:
-            completed = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=max(config.request_timeout, 10),
-                env=env,
-            )
-        except Exception as exc:
-            self._log_msg(f"Subprocess error: {exc}")
-            return _error_status(str(exc))
-
-        self._log_msg(f"stdout: {completed.stdout.strip()[:500]}")
-        if completed.stderr.strip():
-            self._log_msg(f"stderr: {completed.stderr.strip()[:500]}")
-
-        if completed.returncode != 0:
-            msg = (
-                completed.stderr or completed.stdout
-            ).strip() or "gateway start failed"
-            self._log_msg(f"Subprocess exit code {completed.returncode}")
+        # Verify command.py exists in the installed plugin
+        command_script = plugin_dir / "ida_mcp" / "command.py"
+        if not command_script.exists():
+            msg = f"command.py not found at {command_script}. Run install first."
+            self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
+        # python_path comes from ida_python
+        python_path_raw = self._python_path or ""
+        if not python_path_raw:
+            msg = "Set ida_python before starting the gateway."
+            self._log_msg(f"ERROR: {msg}")
+            return _error_status(msg)
+        python_path = Path(python_path_raw)
+        if not python_path.exists():
+            msg = f"ida_python ({python_path}) does not exist."
+            self._log_msg(f"ERROR: {msg}")
+            return _error_status(msg)
+
+        # command.py handles its own sys.path fixup, so no PYTHONPATH needed.
+        # Avoid setting PYTHONPATH to prevent stdlib shadowing in IDA's plugin dir.
+
+        # Use command.py which handles gateway start (including spawning
+        # registry_server as a detached process) and returns JSON on stdout.
+        cmd = [str(python_path), str(command_script), "gateway", "start", "--json"]
+        self._log_msg(f"$ {' '.join(cmd)}")
+
+        # Use temp files instead of pipes for stdout/stderr.  On Windows,
+        # ``subprocess.run(capture_output=True)`` creates anonymous pipes
+        # whose write handles are inherited by grandchild processes (e.g.
+        # registry_server.py spawned by command.py).  Because the gateway
+        # server never exits, those handles stay open and communicate()
+        # blocks forever waiting for EOF.  Temp files avoid this entirely.
+        import tempfile
+
         try:
-            json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            return _error_status(
-                completed.stdout.strip() or "gateway returned invalid JSON"
+            with (
+                tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False
+                ) as out_f,
+                tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False
+                ) as err_f,
+            ):
+                out_path = out_f.name
+                err_path = err_f.name
+
+            proc = subprocess.Popen(
+                cmd,
+                stdout=open(out_path, "w"),
+                stderr=open(err_path, "w"),
+                text=True,
             )
+            try:
+                proc.wait(timeout=max(config.request_timeout, 30))
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                self._log_msg("command.py timed out")
+                return _error_status("Gateway start timed out")
+
+            stdout = Path(out_path).read_text(encoding="utf-8", errors="replace")
+            stderr = Path(err_path).read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            self._log_msg(f"Spawn error: {exc}")
+            return _error_status(str(exc))
+        finally:
+            for p in (out_path, err_path):
+                try:
+                    Path(p).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        self._log_msg(f"stdout: {stdout.strip()[:500]}")
+        if stderr.strip():
+            self._log_msg(f"stderr: {stderr.strip()[:500]}")
+
+        if proc.returncode != 0:
+            msg = (stderr or stdout).strip() or "gateway start failed"
+            self._log_msg(f"Exit code {proc.returncode}: {msg[:300]}")
+            return _error_status(msg)
 
         self._log_msg("Gateway launched, checking status...")
         return self.status()

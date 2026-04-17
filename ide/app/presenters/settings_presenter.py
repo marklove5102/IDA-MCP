@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, fields as dc_fields
+from typing import Any, Callable
 
 from app.services.settings_service import SettingsSnapshot
 from supervisor.models import (
@@ -12,14 +12,28 @@ from supervisor.models import (
     DEFAULT_GATEWAY_PATH,
     DEFAULT_SERVER_NAME,
     HealthReport,
+    IdaMcpConfig,
     InstallationActionResult,
     InstallationCheck,
 )
 
+# Fields in IdaMcpConfig that need a different name in the form to avoid
+# collisions with IdeConfig fields of the same semantic origin.
+_IDA_MCP_FIELD_ALIASES: dict[str, str] = {
+    "request_timeout": "ida_request_timeout",
+}
+_IDA_MCP_FIELD_ALIASES_REV = {v: k for k, v in _IDA_MCP_FIELD_ALIASES.items()}
+
 
 @dataclass(slots=True)
 class SettingsFormState:
-    python_path: str
+    """Flat form state for the settings UI.
+
+    IDE-owned fields (plugin_dir, language, ide_request_timeout)
+    are mapped manually.  All IdaMcpConfig fields are included automatically
+    via ``from_flat_dict``.
+    """
+
     plugin_dir: str
     language: str
     ide_request_timeout: int
@@ -41,6 +55,18 @@ class SettingsFormState:
     ida_request_timeout: int
     debug: bool
 
+    @classmethod
+    def _ida_mcp_field_names(cls) -> set[str]:
+        """Form field names that belong to IdaMcpConfig."""
+        ida_names = IdaMcpConfig.field_names()
+        return {(_IDA_MCP_FIELD_ALIASES.get(n, n)) for n in ida_names}
+
+    @classmethod
+    def from_flat_dict(cls, data: dict[str, Any]) -> SettingsFormState:
+        """Construct from a flat dict, ignoring unknown keys."""
+        allowed = {f.name for f in dc_fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in allowed})
+
 
 @dataclass(slots=True)
 class SettingsMessage:
@@ -50,66 +76,67 @@ class SettingsMessage:
 
 def snapshot_to_form_state(snapshot: SettingsSnapshot) -> SettingsFormState:
     ide_config = snapshot.ide_config
-    ida_mcp_config = snapshot.ida_mcp_config
-    return SettingsFormState(
-        python_path=ide_config.python_path or "",
-        plugin_dir=ide_config.plugin_dir or "",
-        language=ide_config.language,
-        ide_request_timeout=ide_config.request_timeout,
-        enable_http=ida_mcp_config.enable_http,
-        enable_stdio=ida_mcp_config.enable_stdio,
-        enable_unsafe=ida_mcp_config.enable_unsafe,
-        wsl_path_bridge=ida_mcp_config.wsl_path_bridge,
-        http_host=ida_mcp_config.http_host,
-        http_port=ida_mcp_config.http_port,
-        http_path=ida_mcp_config.http_path,
-        ida_default_port=ida_mcp_config.ida_default_port,
-        ida_host=ida_mcp_config.ida_host,
-        ida_path=ida_mcp_config.ida_path or "",
-        ida_python=ida_mcp_config.ida_python or "",
-        open_in_ida_bundle_dir=ida_mcp_config.open_in_ida_bundle_dir or "",
-        open_in_ida_autonomous=ida_mcp_config.open_in_ida_autonomous,
-        auto_start=ida_mcp_config.auto_start,
-        server_name=ida_mcp_config.server_name,
-        ida_request_timeout=ida_mcp_config.request_timeout,
-        debug=ida_mcp_config.debug,
-    )
+    ida_mcp_dict = snapshot.ida_mcp_config.to_dict()
+
+    # Apply field aliases so ida_mcp request_timeout → ida_request_timeout
+    for src, dst in _IDA_MCP_FIELD_ALIASES.items():
+        if src in ida_mcp_dict:
+            ida_mcp_dict[dst] = ida_mcp_dict.pop(src)
+
+    # Coerce None strings to "" for UI display
+    for key in ("ida_path", "ida_python", "open_in_ida_bundle_dir"):
+        if ida_mcp_dict.get(key) is None:
+            ida_mcp_dict[key] = ""
+
+    flat: dict[str, Any] = {
+        "plugin_dir": ide_config.plugin_dir or "",
+        "language": ide_config.language,
+        "ide_request_timeout": ide_config.request_timeout,
+        **ida_mcp_dict,
+    }
+    return SettingsFormState.from_flat_dict(flat)
 
 
 def effective_install_python_path(snapshot: SettingsSnapshot) -> str:
-    return snapshot.ide_config.python_path or snapshot.ida_mcp_config.ida_python or ""
+    return snapshot.ida_mcp_config.ida_python or ""
+
+
+# Fields that need strip-then-fallback-to-default treatment on save.
+_STRIP_OR_DEFAULT: dict[str, tuple[str, str]] = {
+    "http_host": ("", DEFAULT_HTTP_HOST),
+    "http_path": ("", DEFAULT_GATEWAY_PATH),
+    "ida_host": ("", DEFAULT_IDA_HOST),
+    "server_name": ("", DEFAULT_SERVER_NAME),
+}
+
+# Fields that should be cleaned to None when empty on save.
+_OPTIONAL_STR_FIELDS = {"ida_path", "ida_python", "open_in_ida_bundle_dir"}
 
 
 def form_state_to_updates(
     state: SettingsFormState,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    return (
-        {
-            "python_path": _clean_optional(state.python_path),
-            "plugin_dir": _clean_optional(state.plugin_dir),
-            "request_timeout": state.ide_request_timeout,
-            "language": state.language,
-        },
-        {
-            "enable_http": state.enable_http,
-            "enable_stdio": state.enable_stdio,
-            "enable_unsafe": state.enable_unsafe,
-            "wsl_path_bridge": state.wsl_path_bridge,
-            "http_host": state.http_host.strip() or DEFAULT_HTTP_HOST,
-            "http_port": state.http_port,
-            "http_path": state.http_path.strip() or DEFAULT_GATEWAY_PATH,
-            "ida_default_port": state.ida_default_port,
-            "ida_host": state.ida_host.strip() or DEFAULT_IDA_HOST,
-            "ida_path": _clean_optional(state.ida_path),
-            "ida_python": _clean_optional(state.ida_python),
-            "open_in_ida_bundle_dir": _clean_optional(state.open_in_ida_bundle_dir),
-            "open_in_ida_autonomous": state.open_in_ida_autonomous,
-            "auto_start": state.auto_start,
-            "server_name": state.server_name.strip() or DEFAULT_SERVER_NAME,
-            "request_timeout": state.ida_request_timeout,
-            "debug": state.debug,
-        },
-    )
+    ide_updates: dict[str, object] = {
+        "plugin_dir": _clean_plugin_dir(state.plugin_dir),
+        "request_timeout": state.ide_request_timeout,
+        "language": state.language,
+    }
+
+    # Build ida_mcp updates from the form state automatically.
+    ida_mcp_updates: dict[str, object] = {}
+    for name in IdaMcpConfig.field_names():
+        form_name = _IDA_MCP_FIELD_ALIASES.get(name, name)
+        value = getattr(state, form_name)
+
+        if name in _OPTIONAL_STR_FIELDS:
+            value = _clean_optional(str(value))
+        elif name in _STRIP_OR_DEFAULT:
+            stripped = str(value).strip()
+            fallback = _STRIP_OR_DEFAULT[name][1]
+            value = stripped or fallback
+        ida_mcp_updates[name] = value
+
+    return ide_updates, ida_mcp_updates
 
 
 def build_check_message(
@@ -168,6 +195,16 @@ def build_reinstall_message(
 def _clean_optional(value: str) -> str | None:
     cleaned = value.strip()
     return cleaned or None
+
+
+def _clean_plugin_dir(value: str) -> str:
+    """Return stripped plugin_dir, falling back to the IDA default if empty."""
+    cleaned = value.strip()
+    if cleaned:
+        return cleaned
+    from supervisor.models import _default_ida_plugin_dir
+
+    return _default_ida_plugin_dir()
 
 
 def _format_requirement_summary(installation: InstallationCheck) -> str:

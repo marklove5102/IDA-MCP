@@ -25,8 +25,6 @@ FIELD_LABEL_KEYS = {
     "gateway_port": "main.field.gateway_port",
     "ide_config": "main.field.ide_config",
     "plugin_dir": "main.field.plugin_dir",
-    "ida_path": "main.field.ida_path",
-    "python_path": "main.field.python_path",
     "request_timeout": "main.field.request_timeout",
     "status": "main.field.status",
     "current_step": "main.field.current_step",
@@ -127,8 +125,6 @@ def build_main_window_view_model(
             {
                 "ide_config": snapshot.config_store.path,
                 "plugin_dir": snapshot.config.plugin_dir or "",
-                "ida_path": snapshot.config.ida_path or "",
-                "python_path": snapshot.config.python_path or "",
                 "request_timeout": snapshot.config.request_timeout,
             },
             translate,

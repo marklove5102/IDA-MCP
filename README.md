@@ -6,7 +6,7 @@
 
 [![MCP Badge](https://lobehub.com/badge/mcp/captain-ai-hub-ida-mcp)](https://lobehub.com/mcp/captain-ai-hub-ida-mcp)
 
-[wiki](https://github.com/jelasin/IDA-MCP/wiki) [deepwiki](https://deepwiki.com/jelasin/IDA-MCP)
+[wiki](https://github.com/jelasin/IDA-MCP/wiki) · [deepwiki](https://deepwiki.com/jelasin/IDA-MCP)
 
 ## IDA-MCP (FastMCP + Multi-instance Gateway)
 
@@ -15,24 +15,34 @@
 * The gateway serves both the internal API at `/internal` and the client-facing MCP proxy at `/mcp` on `127.0.0.1:11338` by default
 * The stdio proxy is a separate subprocess entrypoint that reuses the same proxy tool set
 * MCP Resources are exposed by each IDA instance directly, not by the gateway/proxy
+* A PySide6 desktop IDE provides installation, configuration, gateway management, and status monitoring
 
 ## Architecture
 
-The project uses a modular architecture:
+### Repository Structure
 
-### Repository Subprojects
+```text
+IDA-MCP/
+├── ide/                        # PySide6 desktop IDE (main project)
+│   ├── app/                    # UI layer
+│   ├── supervisor/             # Gateway lifecycle & installation
+│   ├── resources/ida_mcp/      # Bundled ida_mcp source (installed to IDA plugins/)
+│   └── tests/
+├── skills/                     # MCP skill documentation
+├── test/                       # Test suite
+├── API.md                      # Tool & response contract reference
+├── README.md / README_CN.md
+└── project.md / roadmap.md
+```
 
-* `ida_mcp/` - Core IDA capability layer, gateway, proxy, lifecycle, tools, and resources
-* `ide/` - Standalone PySide6 desktop IDE for installation, configuration, status inspection, and the multi-agent audit workbench
-
-### Core Infrastructure
+### Core Infrastructure (inside `ida_mcp/`)
 
 * `rpc.py` - `@tool` / `@resource` / `@unsafe` decorators and registration
 * `sync.py` - `@idaread` / `@idawrite` IDA thread synchronization decorators
 * `utils.py` - Address parsing, pagination, pattern filtering utilities
 * `compat.py` - IDA 8.x/9.x compatibility layer
 
-### API Modules (IDA Backend)
+### API Modules
 
 * `api_core.py` - IDB metadata, function/string/global lists
 * `api_analysis.py` - Decompilation, disassembly, cross-references
@@ -53,6 +63,45 @@ The project uses a modular architecture:
 * **Multi-instance Support**: A standalone gateway on port 11338 manages multiple IDA instances
 * **HTTP-first Defaults**: The bundled config defaults to `enable_http=true`, `enable_stdio=false`, and `enable_unsafe=true`
 * **IDA 8.x/9.x Compatible**: Compatibility layer handles API differences
+* **Desktop IDE**: PySide6 GUI for one-click install, config, gateway control, and status monitoring
+
+## Installation
+
+### Via Desktop IDE (Recommended)
+
+1. Launch the IDE: `python ide/launcher.py`
+2. In Settings → Config, set **IDA Python** path (e.g. `D:\IDA\ida-python\python.exe`)
+3. Plugin directory defaults to `%APPDATA%\Hex-Rays\IDA Pro\plugins`
+4. Click **Install** — the IDE copies plugin files and installs Python dependencies
+5. Click **Start Gateway** from the status page or toolbar
+
+### Via Command Line
+
+```bash
+python ide/resources/ida_mcp/ida_mcp/command.py gateway start --json
+```
+
+### Manual Installation
+
+1. Copy `ida_mcp.py` and `ida_mcp/` from `ide/resources/ida_mcp/` to IDA's `plugins/` directory
+2. Install dependencies using IDA's Python:
+   ```bash
+   <ida_python> -m pip install -r ide/resources/ida_mcp/requirements.txt
+   ```
+3. Open a target binary in IDA and wait for initial analysis
+
+## Startup Steps
+
+1. Install the plugin (via IDE or manually).
+2. Open a target binary and wait for initial analysis.
+3. Start the gateway (via IDE or `command.py gateway start`).
+4. In IDA, trigger the plugin manually or via `open_in_ida` from the proxy.
+5. On startup, the instance:
+   * selects a free instance port starting from `10000`
+   * serves MCP over `http://127.0.0.1:<instance_port>/mcp/`
+   * registers itself with the gateway at `http://127.0.0.1:11338/internal`
+
+Closing an IDA instance only deregisters that instance. The standalone gateway keeps running.
 
 ## Current Tools
 
@@ -128,24 +177,18 @@ The project uses a modular architecture:
 
 ### Python Tools (`api_python.py`) - Unsafe
 
-* `py_eval` – Execute arbitrary Python code in IDA context and return `result` / `stdout` / `stderr`
+* `py_eval` – Execute arbitrary Python code in IDA context
 
 ### Debug Tools (`api_debug.py`) - Unsafe
 
 * `dbg_regs` – Get all registers
 * `dbg_callstack` – Get call stack
 * `dbg_list_bps` – List breakpoints
-* `dbg_start` – Start debugging
-* `dbg_exit` – Terminate debug
-* `dbg_continue` – Continue execution
+* `dbg_start` / `dbg_exit` / `dbg_continue` – Start/stop/continue debugging
 * `dbg_run_to` – Run to address
-* `dbg_add_bp` – Add breakpoint
-* `dbg_delete_bp` – Delete breakpoint
-* `dbg_enable_bp` – Enable/disable breakpoint
-* `dbg_step_into` – Step into instruction
-* `dbg_step_over` – Step over instruction
-* `dbg_read_mem` – Read debugger memory
-* `dbg_write_mem` – Write debugger memory
+* `dbg_add_bp` / `dbg_delete_bp` / `dbg_enable_bp` – Breakpoint management
+* `dbg_step_into` / `dbg_step_over` – Single-step execution
+* `dbg_read_mem` / `dbg_write_mem` – Debugger memory access
 
 ### MCP Resources (`api_resources.py`)
 
@@ -156,120 +199,13 @@ The project uses a modular architecture:
 * `ida://function/{addr}/disasm` – Function disassembly snapshot
 * `ida://function/{addr}/basic_blocks` – Function CFG/basic block view
 * `ida://function/{addr}/stack` – Function stack/local-variable view
-* `ida://strings` – Strings
-* `ida://globals` – Global symbols
-* `ida://types` – Local types
-* `ida://segments` / `ida://segment/{name_or_addr}` – Segment list and detail
-* `ida://imports` / `ida://imports/{module}` – Imports list and per-module view
-* `ida://exports` – Export list
-* `ida://entry_points` – Entry points
-* `ida://structs` / `ida://struct/{name}` – Struct list and detail
-* `ida://xrefs/to/{addr}` – Cross-references to address
-* `ida://xrefs/to/{addr}/summary` – Aggregated incoming xref summary
-* `ida://xrefs/from/{addr}` – Cross-references from address
-* `ida://xrefs/from/{addr}/summary` – Aggregated outgoing xref summary
+* `ida://strings` / `ida://globals` / `ida://types` / `ida://segments`
+* `ida://imports` / `ida://imports/{module}` / `ida://exports` / `ida://entry_points`
+* `ida://structs` / `ida://struct/{name}`
+* `ida://xrefs/to/{addr}` / `ida://xrefs/from/{addr}` (+ `/summary` variants)
 * `ida://memory/{addr}?size=N` – Read memory
 
-## Directory Structure
-
-```text
-IDA-MCP/
-  ida_mcp.py              # Plugin entry: start/stop per-instance HTTP MCP server + register with gateway
-  ida_mcp/
-    __init__.py           # Package initialization, auto-discovery, exports
-    config.py             # Configuration loader (config.conf parser)
-    config.conf           # User configuration file
-    rpc.py                # @tool/@resource/@unsafe decorators
-    sync.py               # @idaread/@idawrite thread sync
-    utils.py              # Utility functions
-    compat.py             # IDA 8.x/9.x compatibility layer
-    api_core.py           # Core API (metadata, lists)
-    api_analysis.py       # Analysis API (decompile, disasm, xrefs)
-    api_memory.py         # Memory API
-    api_modeling.py       # Modeling API (functions, code/data/string creation)
-    api_types.py          # Type API
-    api_modify.py         # Modification API
-    api_stack.py          # Stack frame API
-    api_debug.py          # Debugger API (unsafe)
-    api_python.py         # Python execution API (unsafe)
-    api_lifecycle.py      # IDA-instance lifecycle API (shutdown/exit)
-    api_resources.py      # MCP Resources
-    registry.py           # Gateway client helpers / multi-instance registration
-    proxy/                # stdio-based MCP proxy
-      __init__.py         # Proxy module exports
-      ida_mcp_proxy.py    # Main entry point (stdio MCP server)
-      lifecycle.py        # Proxy-side lifecycle operations
-      _http.py            # HTTP helpers for gateway communication
-      _state.py           # State management and port validation
-      register_tools.py   # Consolidated forwarding tool registration
-      http_server.py      # HTTP transport wrapper (reuses ida_mcp_proxy.server)
-  ide/                    # Standalone PySide6 desktop IDE subproject
-    project.md            # IDE structure and project map
-    roadmap.md            # IDE product and engineering roadmap
-  mcp.json                # MCP client configuration (both modes)
-  roadmap.md              # Phased plan for reducing py_eval dependence
-  README.md               # README
-  requirements.txt        # fastmcp dependencies
-```
-
-## Startup Steps
-
-1. Copy `ida_mcp.py` + `ida_mcp` folder to IDA's `plugins/`.
-2. Open a target binary and wait for initial analysis.
-3. Start the plugin manually from IDA, or call `open_in_ida` from the proxy.
-4. On startup, the instance:
-   * selects a free instance port starting from `10000`
-   * serves MCP over `http://127.0.0.1:<instance_port>/mcp/`
-   * ensures the standalone gateway daemon is reachable on `127.0.0.1:11338`
-   * registers itself with the gateway's internal API at `http://127.0.0.1:11338/internal`
-5. Trigger the plugin again to stop the instance server and deregister it.
-
-Closing an IDA instance only deregisters that instance. The standalone gateway keeps running and can accept later instances.
-
-`open_in_ida` is a proxy-side lifecycle tool. It launches the IDA binary resolved from `config.conf` (`ida_path`), and requests plugin auto-start by setting `IDA_MCP_AUTO_START=1` and a reserved `IDA_MCP_PORT` in the child process environment. Whether it adds `-A` is controlled by `config.conf` (`open_in_ida_autonomous`). The default remains `true`.
-
-`open_in_ida` uses `config.conf` to resolve the IDA executable. File staging is optional: when `open_in_ida_bundle_dir` is configured, `open_in_ida` creates a timestamped launch directory under that root and copies the requested file there before launch. If a matching `.i64` or `.idb` already exists, it copies that database too and launches the database path directly so IDA can enter the existing workspace without showing the loader/options confirmation dialog again. When staging is not configured, `open_in_ida` launches the original path directly and still prefers an existing matching database when present.
-
-With the default `open_in_ida_autonomous=true`, IDA starts in batch/autonomous mode. That is useful for unattended automation and can reduce some interactive confirmation flows, but it is not the same as a normal manual reverse-engineering session: interactive dialogs may be suppressed, loader/plugin/UI behaviors that expect manual confirmation can differ.
-
-If you want to combine automation with later manual work, use a two-stage flow:
-
-1. Call `open_in_ida(...)` while `open_in_ida_autonomous=true` to let IDA run the automated phase.
-2. Save the generated `.i64/.idb`.
-3. Set `open_in_ida_autonomous=false` and reopen that database with `open_in_ida(...)` for normal manual interaction.
-
-If you use WSL as the control side, these are README-only operational recommendations. IDA-MCP does not read them. Recommended Windows-side `%UserProfile%\\.wslconfig`:
-
-```ini
-[wsl2]
-memory=24GB
-processors=16
-swap=6GB
-
-nestedVirtualization=true
-ipv6=true
-
-[experimental]
-autoMemoryReclaim=gradual
-networkingMode=mirrored
-dnsTunneling=true
-firewall=true
-autoProxy=true
-```
-
 ## Transport Overview
-
-There are two gateway-facing endpoints plus one per-instance endpoint in this project, and the distinction matters:
-
-* `127.0.0.1:11338/internal` - internal gateway HTTP API used for instance registry and tool forwarding
-* `127.0.0.1:11338/mcp` - client-facing HTTP MCP proxy exposed by the same standalone gateway process
-* `127.0.0.1:<instance_port>/mcp/` - direct MCP endpoint owned by one specific IDA instance
-
-The bundled `mcp.json` and the current default config are centered on the HTTP proxy on port `11338`.
-
-## Proxy Usage
-
-### Transport Modes
 
 | Mode | Description | Configuration |
 |------|-------------|---------------|
@@ -293,94 +229,13 @@ The bundled `mcp.json` and the current default config are centered on the HTTP p
 | Python | `py_eval` |
 | Debug | `dbg_start`, `dbg_continue`, `dbg_step_into`, `dbg_step_over`, `dbg_regs`, `dbg_add_bp`, `dbg_delete_bp`, ... |
 
-You can use it on Codex / Claude Code / LangChain / Cursor / VSCode / etc - any MCP client.
-
-Parameter schema is shared between the proxy and direct instance tools. For example, `rename_function` uses `address` on both sides and accepts either a symbol name or a numeric address. For multi-instance usage, prefer passing `port` explicitly on proxy tools instead of relying on a process-wide selected instance.
-
-### Configuration File
-
-Edit `ida_mcp/config.conf` to customize settings:
-
-```ini
-enable_stdio = false
-enable_http = true
-enable_unsafe = true
-wsl_path_bridge = false
-
-# HTTP proxy settings
-# http_host = "127.0.0.1"
-# http_port = 11338
-# http_path = "/mcp"
-
-# IDA instance settings
-ida_default_port = 10000
-ida_host = "127.0.0.1"
-# ida_path = "C:\\Path\\To\\ida.exe"
-# ida_python = "C:\\Path\\To\\ida-python\\python.exe"
-open_in_ida_bundle_dir = ""
-open_in_ida_autonomous = true
-auto_start = false
-server_name = "IDA-MCP"
-
-# General settings
-# request_timeout = 30
-# debug = false
-```
-
-Notes:
-
-* The gateway client connection host remains derived from `http_host`; the per-instance host is configured with `ida_host`.
-* `ida_python` records the IDA-side Python selected during installation so the configured environment is visible later. The gateway/proxy subprocess also uses `ida_python` at runtime.
-* `open_in_ida` no longer accepts an `ida_path` tool argument; configure the IDA executable through `config.conf`.
-* `open_in_ida` sets `IDA_MCP_AUTO_START=1` and `IDA_MCP_PORT=<reserved_port>` for the launched IDA process.
-* `open_in_ida` no longer takes an `autonomous` tool parameter; configure `open_in_ida_autonomous` in `config.conf` instead.
-* `open_in_ida_autonomous` defaults to `true`, so `open_in_ida` adds `-A` unless config disables it.
-* `-A` switches IDA into batch/autonomous startup mode. For the "automate first, inspect later" workflow, save the `.i64/.idb`, set `open_in_ida_autonomous=false`, and reopen it.
-* With `-A`, confirmation dialogs and some loader/plugin/UI flows can be suppressed or behave differently from normal GUI startup.
-* `open_in_ida` only stages files when `open_in_ida_bundle_dir` is configured.
-* When staging is enabled, `open_in_ida` creates `.../<timestamp>/`, copies the requested file, and also copies a matching `.i64`/`.idb` when one exists.
-* When a matching `.i64`/`.idb` exists, `open_in_ida` launches that database path directly to avoid the initial loader/options confirmation flow.
-* When staging is not enabled, `open_in_ida` launches the original path directly.
-* `wsl_path_bridge` is disabled by default. Enable it only when the LLM/client works inside WSL while IDA/Python stay on the Windows host.
-* When `wsl_path_bridge` is enabled, configure both `ida_path` and `open_in_ida_bundle_dir` as **host Windows paths**.
-* With `wsl_path_bridge` enabled, `open_in_ida` converts convertible WSL mount paths such as `/mnt/e/...` into host Windows paths before launching IDA.
-* If `wsl_path_bridge` is enabled and the final launch target cannot be translated into a Windows path, `open_in_ida` returns an error. In that case, configure `open_in_ida_bundle_dir` so the file is staged onto a Windows drive first.
-* If both `enable_stdio` and `enable_http` are disabled, the plugin will not start the gateway/transport stack.
+Works with any MCP client: Claude Code, Codex, Cursor, VSCode, LangChain, Cherry Studio, etc.
 
 ### Method 1: HTTP Proxy Mode (Recommended)
 
-When the standalone gateway is running and HTTP proxying is enabled, the client only needs the proxy URL.
-
-**Claude / Cherry Studio / Cursor example:**
-
 ```json
 {
   "mcpServers": {
-    "ida-mcp": {
-      "url": "http://127.0.0.1:11338/mcp"
-    }
-  }
-}
-```
-
-**LangChain example:**
-
-```json
-{
-  "mcpServers": {
-    "ida-mcp": {
-      "transport": "streamable-http",
-      "url": "http://127.0.0.1:11338/mcp"
-    }
-  }
-}
-```
-
-**VSCode example:**
-
-```json
-{
-  "servers": {
     "ida-mcp": {
       "url": "http://127.0.0.1:11338/mcp"
     }
@@ -390,104 +245,63 @@ When the standalone gateway is running and HTTP proxying is enabled, the client 
 
 ### Method 2: stdio Proxy Mode
 
-The client launches the proxy as a subprocess. This proxy talks to the standalone gateway on `11338` and exposes the same proxy-side tools as HTTP mode.
-
-**Claude / Cherry Studio / Cursor example:**
-
 ```json
 {
   "mcpServers": {
     "ida-mcp-proxy": {
-      "command": "path of python (IDA's python)",
-      "args": ["path of ida_mcp/proxy/ida_mcp_proxy.py"]
+      "command": "path/to/ida-python/python.exe",
+      "args": ["path/to/ida_mcp/proxy/ida_mcp_proxy.py"]
     }
   }
 }
 ```
 
-**VSCode example:**
+## Configuration
 
-```json
-{
-  "servers": {
-    "ida-mcp-proxy": {
-      "command": "path of python (IDA's python)",
-      "args": ["path of ida_mcp/proxy/ida_mcp_proxy.py"]
-    }
-  }
-}
+Edit `ida_mcp/config.conf` (located in the IDA plugins directory after installation):
+
+```ini
+enable_stdio = false
+enable_http = true
+enable_unsafe = true
+wsl_path_bridge = false
+
+http_host = "0.0.0.0"
+http_port = 11338
+http_path = "/mcp"
+
+ida_default_port = 10000
+ida_host = "127.0.0.1"
+# ida_path = "C:\\Path\\To\\ida.exe"
+# ida_python = "C:\\Path\\To\\ida-python\\python.exe"
+open_in_ida_bundle_dir = ""
+open_in_ida_autonomous = true
+auto_start = false
+server_name = "IDA-MCP"
+
+request_timeout = 30
+debug = false
 ```
-
-## Resources
-
-`ida://` resources are registered on the direct IDA instance server, not on the proxy server. That means:
-
-* `list_resources` / `read_resource` must connect to `http://127.0.0.1:<instance_port>/mcp/`
-* the HTTP proxy on `11338` forwards tools, but does not forward resources
-* resource payloads are returned as JSON text content, so MCP clients typically need to parse the resource text as JSON
-* resources are read-only and cover stable context views, not the full tool surface
-
-Resource payload conventions:
-
-* list resources return JSON objects shaped like `{kind, count, items}`
-* detail resources return JSON objects shaped like `{kind, address|name, ...}`
-* resource errors return `{error: {code, message, details?}}`
-* the old pattern-style resource URIs such as `ida://functions/{pattern}` were removed in favor of canonical list/detail URIs
-
-Typical flow:
-
-1. Call `list_instances` via the proxy to find the target instance port.
-2. Open a direct MCP client to `http://127.0.0.1:<instance_port>/mcp/`.
-3. Use `list_resources` / `read_resource("ida://...")` there.
-
-## Automated Install
-
-Run:
-
-```bash
-python install.py
-```
-
-The installer:
-
-* first prompts for the IDA install path and IDA Python path; leaving either blank falls back to auto-discovery, which may take a while
-* uses the selected IDA-side Python to run `pip install -r requirements.txt`
-* copies `ida_mcp.py` and `ida_mcp/` into IDA's `plugins/` directory
-* interactively generates the destination `ida_mcp/config.conf`
-
-Use `python install.py --dry-run` to verify detection and configuration choices without making changes.
 
 ## Command Helper
 
-Use `command.py` for local control, scripting, and CI-friendly access:
+The installed `command.py` provides CLI access:
 
 ```bash
-python command.py gateway start
-python command.py gateway restart
-python command.py gateway status
-python command.py ida list
-python command.py ida open ./test/samples/simple.exe
-python command.py ida select --port 10000
-python command.py tool call get_metadata --port 10000
-python command.py resource read ida://functions --port 10000
-python command.py gateway stop --force
+python <plugins>/ida_mcp/command.py gateway start
+python <plugins>/ida_mcp/command.py gateway status
+python <plugins>/ida_mcp/command.py gateway stop
+python <plugins>/ida_mcp/command.py ida list
+python <plugins>/ida_mcp/command.py ida open ./target.exe
+python <plugins>/ida_mcp/command.py tool call get_metadata --port 10000
 ```
 
-Add `--json` to any command when you need machine-readable output. Human-readable output is the default.
-
-## Dependencies
-
-Need to install using IDA's Python environment:
-
-```bash
-python -m pip install -r requirements.txt
-```
+Add `--json` for machine-readable output.
 
 ## Development
 
 It's not about having many tools, but about having precise ones; the power of the API is what truly matters. Additionally, the tools should be comprehensive, and the more tools there are, the more obstacles there are for the model to call them. If certain tools can be achieved through existing ones, then those tools are unnecessary. What I need are the missing tools—the ones that existing tools cannot accomplish.
 
-## Future Plans
+## License
 
-Add UI interface, support internal model calls, add multi-agent A2A automated reverse engineering functionality after langchain officially updates to 1.0.0.
-
+See [LICENSE](LICENSE).

@@ -125,6 +125,6 @@ def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() 
     QApplication.processEvents()
 
     assert service.saved is True
-    assert page._install_plugin_dir.text() == ""
+    assert page._install_plugin_dir.text()  # default IDA plugins path
 
     page.close()

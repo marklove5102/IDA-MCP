@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from shared.ida_mcp_config import IdaMcpConfigStore
 
 from .config_store import IdeConfigStore
@@ -51,11 +53,7 @@ class SupervisorManager:
         return self._get_ida_mcp_config_store().load()
 
     def _effective_python_path(self) -> str | None:
-        ide_config = self.get_ide_config()
-        if ide_config.python_path:
-            return ide_config.python_path
-        ida_mcp_config = self.get_ida_mcp_config()
-        return ida_mcp_config.ida_python
+        return self.get_ida_mcp_config().ida_python
 
     def get_ide_config_store_info(self):
         return self.config_store.info()
@@ -91,7 +89,9 @@ class SupervisorManager:
             config_path=None,
         )
 
-    def reinstall(self) -> InstallationActionResult:
+    def reinstall(
+        self, *, on_progress: Callable[[str], None] | None = None
+    ) -> InstallationActionResult:
         from .install_runner import run_install
 
         config = self.get_ide_config()
@@ -113,29 +113,44 @@ class SupervisorManager:
         config_dict = ida_mcp_config.to_dict()
         return run_install(
             python_executable=python_path,
-            ida_path=ida_mcp_config.ida_path or config.ida_path,
+            ida_path=ida_mcp_config.ida_path,
             plugin_dir=config.plugin_dir,
             ida_mcp_config_dict=config_dict,
+            on_progress=on_progress,
         )
 
-    def get_gateway_status(self) -> GatewayStatus:
-        return self.gateway_controller.status()
+    def _controller_with_log(
+        self, log: Callable[[str], None] | None
+    ) -> GatewayController:
+        python_path = self._effective_python_path()
+        return GatewayController(self.config_store, log=log, python_path=python_path)
 
-    def start_gateway(self) -> GatewayStatus:
-        return self.gateway_controller.start()
+    def get_gateway_status(
+        self, log: Callable[[str], None] | None = None
+    ) -> GatewayStatus:
+        return self._controller_with_log(log).status()
 
-    def stop_gateway(self, force: bool = False) -> GatewayStatus:
-        return self.gateway_controller.stop(force=force)
+    def start_gateway(self, log: Callable[[str], None] | None = None) -> GatewayStatus:
+        return self._controller_with_log(log).start()
 
-    def get_health_report(self) -> HealthReport:
+    def stop_gateway(
+        self, force: bool = False, log: Callable[[str], None] | None = None
+    ) -> GatewayStatus:
+        return self._controller_with_log(log).stop(force=force)
+
+    def get_health_report(
+        self, log: Callable[[str], None] | None = None
+    ) -> HealthReport:
         config = self.get_config()
-        gateway = self.get_gateway_status()
+        gateway = self.get_gateway_status(log=log)
         environment = self.probe_environment()
         return build_health_report(config, gateway, environment)
 
-    def get_snapshot(self) -> SupervisorSnapshot:
+    def get_snapshot(
+        self, log: Callable[[str], None] | None = None
+    ) -> SupervisorSnapshot:
         config = self.get_config()
-        gateway = self.get_gateway_status()
+        gateway = self.get_gateway_status(log=log)
         environment = self.probe_environment()
         health = build_health_report(config, gateway, environment)
         return SupervisorSnapshot(

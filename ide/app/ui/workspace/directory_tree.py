@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QFileIconProvider,
     QFileSystemModel,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QTreeView,
     QVBoxLayout,
@@ -31,22 +30,19 @@ class DirectoryTreeWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Toolbar
+        # Toolbar with centered open button
         toolbar = QWidget()
         toolbar.setObjectName("dirTreeToolbar")
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(8, 6, 8, 6)
-        toolbar_layout.setSpacing(6)
 
-        open_btn = QPushButton("Open Folder")
-        open_btn.setObjectName("openFolderButton")
-        open_btn.clicked.connect(self._on_open_folder)
+        self._open_btn = QPushButton("Open Folder")
+        self._open_btn.setObjectName("openFolderButton")
+        self._open_btn.clicked.connect(self._on_open_folder)
 
-        self._path_label = QLabel("No folder opened")
-        self._path_label.setObjectName("dirTreePathLabel")
-
-        toolbar_layout.addWidget(open_btn)
-        toolbar_layout.addWidget(self._path_label, 1)
+        toolbar_layout.addStretch()
+        toolbar_layout.addWidget(self._open_btn)
+        toolbar_layout.addStretch()
 
         # Tree view
         self._model = QFileSystemModel(self)
@@ -80,10 +76,8 @@ class DirectoryTreeWidget(QWidget):
         idx = self._model.setRootPath(path)
         self._tree.setRootIndex(idx)
         self._tree.setVisible(True)
-        # Show only folder name in label, full path in tooltip
-        folder_name = Path(path).name or path
-        self._path_label.setText(folder_name)
-        self._path_label.setToolTip(path)
+        self._open_btn.setText(Path(path).name or path)
+        self._open_btn.setToolTip(path)
 
     def current_directory(self) -> str | None:
         return self._root_path
