@@ -51,9 +51,9 @@ class SupervisorClient:
         return self.get_snapshot(log=log)
 
     def stop_gateway(
-        self, force: bool = False, log: Callable[[str], None] | None = None
+        self, *, log: Callable[[str], None] | None = None
     ) -> SupervisorSnapshot:
-        self._manager.stop_gateway(force=force, log=log)
+        self._manager.stop_gateway(log=log)
         return self.get_snapshot(log=log)
 
     def update_ide_config(self, **updates: object) -> IdeConfig:

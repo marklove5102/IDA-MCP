@@ -1,7 +1,13 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 from supervisor.installer import EnvironmentInstaller
+from supervisor.platform_detector import (
+    PlatformDetector,
+    _probe_ida_python_via_idapyswitch,
+)
 
 
 def test_check_installation_reports_missing_config(tmp_path: Path) -> None:
@@ -124,3 +130,127 @@ def test_repair_config_uses_explicit_config_path(tmp_path: Path) -> None:
     assert result.created is True
     assert result.config_path == str(explicit_config)
     assert explicit_config.read_text(encoding="utf-8") == "enable_http = true\n"
+
+
+# ------------------------------------------------------------------
+# probe / find_* / idapyswitch parsing tests
+# ------------------------------------------------------------------
+
+
+def test_probe_with_explicit_plugin_dir(tmp_path: Path) -> None:
+    """probe(plugin_dir=...) should mark ida_mcp_importable when files exist."""
+    plugin_dir = tmp_path / "plugins"
+    plugin_dir.mkdir()
+    (plugin_dir / "ida_mcp.py").write_text("# plugin\n", encoding="utf-8")
+    (plugin_dir / "ida_mcp").mkdir()
+
+    installer = EnvironmentInstaller(repo_root=tmp_path)
+    probe = installer.probe(plugin_dir=str(plugin_dir))
+
+    assert probe.ida_mcp_importable is True
+    assert probe.ida_mcp_location == str(plugin_dir)
+
+
+def test_probe_without_plugin_dir_reports_not_importable(tmp_path: Path) -> None:
+    """probe() without explicit plugin_dir should not find resources dir."""
+    installer = EnvironmentInstaller(repo_root=tmp_path)
+    probe = installer.probe()
+
+    # repo_root (tmp_path) is not a valid IDA plugins directory
+    assert probe.ida_mcp_importable is False
+    assert "ida_mcp plugin directory not detected" in probe.warnings
+
+
+def test_find_plugin_dirs_does_not_scan_resources(tmp_path: Path) -> None:
+    """find_plugin_dirs must never return the bundled resources directory."""
+    resources = tmp_path / "resources" / "ida_mcp"
+    resources.mkdir(parents=True)
+    (resources / "ida_mcp.py").write_text("# bundled\n", encoding="utf-8")
+    (resources / "ida_mcp").mkdir()
+
+    installer = EnvironmentInstaller(repo_root=tmp_path)
+    dirs = installer.find_plugin_dirs()
+
+    assert str(resources) not in dirs
+
+
+def test_idapyswitch_parses_previously_used(monkeypatch, tmp_path: Path) -> None:
+    """_probe_ida_python_via_idapyswitch should parse 'IDA previously used:' line."""
+    ida_dir = tmp_path / "ida"
+    ida_dir.mkdir()
+    python_dir = ida_dir / "ida-python"
+    python_dir.mkdir()
+    (python_dir / "python.exe").write_text("", encoding="utf-8")
+
+    # Create a fake idapyswitch that outputs the expected format
+    fake_switch = ida_dir / "idapyswitch.exe"
+    fake_switch.write_text("fake", encoding="utf-8")
+
+    mock_output = (
+        'IDA previously used: "' + str(python_dir / "python3.dll") + '" '
+        "(guessed version: 3.12.10)\n"
+        "Applying version 3.12.10\n"
+    )
+
+    import subprocess
+
+    class _FakeCompleted:
+        stdout = mock_output
+        stderr = ""
+        returncode = 0
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: _FakeCompleted())
+
+    result = _probe_ida_python_via_idapyswitch(ida_dir)
+    assert len(result) == 1
+    assert "python.exe" in result[0]
+
+
+def test_idapyswitch_not_found_returns_empty(tmp_path: Path) -> None:
+    """If idapyswitch doesn't exist, should return empty list."""
+    ida_dir = tmp_path / "ida"
+    ida_dir.mkdir()
+
+    result = _probe_ida_python_via_idapyswitch(ida_dir)
+    assert result == []
+
+
+def test_find_ida_paths_macos_discovers_bundles(monkeypatch) -> None:
+    """On macOS-like platforms, app bundles contribute ida64 candidates."""
+    import platform
+
+    if platform.system() == "Windows":
+        pytest.skip("macOS app bundle path resolution not testable on Windows")
+
+    installer = EnvironmentInstaller()
+    from pathlib import Path
+
+    bundle = Path("/Applications/IDA Professional 9.0.app")
+    expected = str(bundle / "Contents" / "MacOS" / "ida64")
+    _orig_is_dir = Path.is_dir
+    _orig_exists = Path.exists
+    _orig_glob = Path.glob
+
+    def _mock_is_dir(self):
+        if self == Path("/Applications"):
+            return True
+        if self == bundle / "Contents" / "MacOS":
+            return True
+        return _orig_is_dir(self)
+
+    def _mock_exists(self):
+        if self == bundle / "Contents" / "MacOS" / "ida64":
+            return True
+        return _orig_exists(self)
+
+    def _mock_glob(self, pattern):
+        if self == Path("/Applications") and pattern == "IDA*.app":
+            return [bundle]
+        return list(_orig_glob(self, pattern))
+
+    monkeypatch.setattr(Path, "is_dir", _mock_is_dir)
+    monkeypatch.setattr(Path, "exists", _mock_exists)
+    monkeypatch.setattr(Path, "glob", _mock_glob)
+
+    paths = installer.find_ida_paths()
+    assert expected in paths

@@ -27,8 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("probe", help="Show environment probe")
     subparsers.add_parser("start-gateway", help="Start the gateway")
 
-    stop_parser = subparsers.add_parser("stop-gateway", help="Stop the gateway")
-    stop_parser.add_argument("--force", action="store_true")
+    subparsers.add_parser("stop-gateway", help="Stop the gateway")
 
     config_parser = subparsers.add_parser("set-config", help="Update stored config")
     config_parser.add_argument("--plugin-dir")
@@ -59,7 +58,7 @@ def main() -> int:
         _print_payload(manager.start_gateway())
         return 0
     if args.command == "stop-gateway":
-        _print_payload(manager.stop_gateway(force=bool(args.force)))
+        _print_payload(manager.stop_gateway())
         return 0
     if args.command == "set-config":
         ide_updates: dict[str, Any] = {

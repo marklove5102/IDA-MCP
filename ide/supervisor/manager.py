@@ -71,7 +71,8 @@ class SupervisorManager:
         return self._get_ida_mcp_config_store().update(**updates)
 
     def probe_environment(self) -> EnvironmentProbe:
-        return self.installer.probe()
+        config = self.get_ide_config()
+        return self.installer.probe(plugin_dir=config.plugin_dir)
 
     def check_installation(self) -> InstallationCheck:
         config = self.get_ide_config()
@@ -122,8 +123,22 @@ class SupervisorManager:
     def _controller_with_log(
         self, log: Callable[[str], None] | None
     ) -> GatewayController:
-        python_path = self._effective_python_path()
-        return GatewayController(self.config_store, log=log, python_path=python_path)
+        """Return a controller, optionally with log routing.
+
+        When *log* is None, returns the injected ``self.gateway_controller``
+        so that tests and callers can substitute their own controller.
+
+        When *log* is provided, creates a fresh controller sharing the same
+        config_store and python_path so that log callbacks don't cross
+        between concurrent calls.
+        """
+        if log is None:
+            return self.gateway_controller
+        return GatewayController(
+            self.config_store,
+            log=log,
+            python_path=self._effective_python_path(),
+        )
 
     def get_gateway_status(
         self, log: Callable[[str], None] | None = None
@@ -133,10 +148,8 @@ class SupervisorManager:
     def start_gateway(self, log: Callable[[str], None] | None = None) -> GatewayStatus:
         return self._controller_with_log(log).start()
 
-    def stop_gateway(
-        self, force: bool = False, log: Callable[[str], None] | None = None
-    ) -> GatewayStatus:
-        return self._controller_with_log(log).stop(force=force)
+    def stop_gateway(self, log: Callable[[str], None] | None = None) -> GatewayStatus:
+        return self._controller_with_log(log).stop()
 
     def get_health_report(
         self, log: Callable[[str], None] | None = None

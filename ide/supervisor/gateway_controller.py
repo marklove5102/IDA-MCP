@@ -222,9 +222,9 @@ class GatewayController:
         return self._subprocess_start()
 
     # ------------------------------------------------------------------
-    # Stop — POST /internal/shutdown (never force)
+    # Stop — POST /internal/shutdown
     # ------------------------------------------------------------------
-    def stop(self, force: bool = False) -> GatewayStatus:
+    def stop(self) -> GatewayStatus:
         host, port, path = self._gateway_params()
 
         self._log_msg(f"Checking {host}:{port} before stop...")
@@ -266,8 +266,8 @@ class GatewayController:
 
         return self.status()
 
-    def restart(self, force: bool = False) -> GatewayStatus:
-        stopped = self.stop(force=force)
+    def restart(self) -> GatewayStatus:
+        stopped = self.stop()
         if stopped.state == GatewayState.ERROR:
             return stopped
         return self.start()

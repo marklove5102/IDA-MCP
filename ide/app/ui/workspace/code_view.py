@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import markdown
-from pygments import highlight
-from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_for_filename, ClassNotFound, TextLexer
 
 from PySide6.QtCore import Qt
@@ -112,43 +110,6 @@ th {{ background: #f5f5f5; font-weight: 600; }}
 blockquote {{ border-left: 3px solid #ddd; margin: 8px 0; padding: 4px 12px; color: #555; }}
 a {{ color: #3b82f6; }}
 img {{ max-width: 100%; }}
-</style></head><body>{body}</body></html>"""
-
-
-# ---------------------------------------------------------------------------
-# Syntax-highlighted HTML for the editor gutter (used by non-md files too)
-# ---------------------------------------------------------------------------
-
-_PYGMENTS_CSS_CACHE: str | None = None
-
-
-def _pygments_css() -> str:
-    global _PYGMENTS_CSS_CACHE
-    if _PYGMENTS_CSS_CACHE is None:
-        _PYGMENTS_CSS_CACHE = HtmlFormatter(
-            style="default", noclasses=True
-        ).get_style_defs()
-    return _PYGMENTS_CSS_CACHE
-
-
-def _highlight_code(text: str, filename: str) -> str:
-    try:
-        lexer = get_lexer_for_filename(filename, text)
-    except ClassNotFound:
-        lexer = TextLexer()
-    fmt = HtmlFormatter(
-        style="default", noclasses=True, linenos="table", linespans="line"
-    )
-    return highlight(text, lexer, fmt)
-
-
-_CODE_HTML_TEMPLATE = """<html><head><style>
-body {{ font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 13px; margin: 0; }}
-pre {{ font-size: 13px; }}
-table {{ border-collapse: collapse; }}
-td.linenos {{ padding-right: 12px; color: #aaa; text-align: right; vertical-align: top; }}
-td.code {{ vertical-align: top; }}
-{css}
 </style></head><body>{body}</body></html>"""
 
 

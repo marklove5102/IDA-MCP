@@ -63,7 +63,16 @@ class _StubSupervisorClient(SupervisorClient):
             missing_requirements=["pytest"],
         )
 
-    def get_snapshot(self) -> SupervisorSnapshot:
+    def get_snapshot(self, *, log=None) -> SupervisorSnapshot:
+        return self._build_snapshot()
+
+    def start_gateway(self, *, log=None) -> SupervisorSnapshot:
+        return self._build_snapshot()
+
+    def stop_gateway(self, *, log=None) -> SupervisorSnapshot:
+        return self._build_snapshot()
+
+    def _build_snapshot(self) -> SupervisorSnapshot:
         supervisor = ComponentHealth("supervisor", HealthState.OK, "Supervisor ready")
         gateway = ComponentHealth("gateway", HealthState.WARNING, "Gateway stopped")
         environment = ComponentHealth(
@@ -104,17 +113,19 @@ class _StubSupervisorClient(SupervisorClient):
         )
 
 
-def test_main_window_retranslates_core_shell_labels() -> None:
+def test_main_window_retranslates_core_shell_labels(monkeypatch) -> None:
     _app()
+    monkeypatch.setattr(
+        "app.services.gateway_manager.GatewayManager.refresh", lambda self: None
+    )
     client = _StubSupervisorClient(language="zh")
     window = MainWindow(client)
 
-    # Synchronously inject a snapshot so status bar and cards are populated.
-    window._on_snapshot_ready(client.get_snapshot())
+    # Drive the UI through the gateway manager seam instead of calling the slot directly.
+    window._gateway._on_finished(client.get_snapshot())
 
     assert window._activity_items["chat"].toolTip() == "聊天"
     assert window._status_buttons["toggle_gateway"].text() == "启动 Gateway"
-    assert window._supervisor_menu.title() == "监督器"
     assert window._status_card_titles["environment"].text() == "环境"
     assert window.statusBar().currentMessage() == "快照已刷新"
 
@@ -122,7 +133,33 @@ def test_main_window_retranslates_core_shell_labels() -> None:
 
     assert window._activity_items["chat"].toolTip() == "Chat"
     assert window._status_buttons["toggle_gateway"].text() == "Start Gateway"
-    assert window._supervisor_menu.title() == "Supervisor"
     assert window._status_card_titles["environment"].text() == "Environment"
+
+    window.close()
+
+
+def test_main_window_busy_changed_disables_status_buttons(monkeypatch) -> None:
+    _app()
+    monkeypatch.setattr(
+        "app.services.gateway_manager.GatewayManager.refresh", lambda self: None
+    )
+    client = _StubSupervisorClient(language="en")
+    window = MainWindow(client)
+
+    refresh_button = window._status_buttons["refresh"]
+    toggle_button = window._status_buttons["toggle_gateway"]
+
+    assert refresh_button.isEnabled() is True
+    assert toggle_button.isEnabled() is True
+
+    window._gateway.busy_changed.emit(True)
+
+    assert refresh_button.isEnabled() is False
+    assert toggle_button.isEnabled() is False
+
+    window._gateway.busy_changed.emit(False)
+
+    assert refresh_button.isEnabled() is True
+    assert toggle_button.isEnabled() is True
 
     window.close()

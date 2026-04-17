@@ -1,1 +1,0 @@
-"""Dock widgets package."""

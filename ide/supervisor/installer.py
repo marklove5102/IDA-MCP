@@ -13,20 +13,7 @@ from pathlib import Path
 from shared.paths import get_ida_mcp_resources_dir
 
 from .models import EnvironmentProbe, InstallationActionResult, InstallationCheck
-
-
-def _dedupe_paths(paths: list[Path]) -> list[str]:
-    seen: set[str] = set()
-    results: list[str] = []
-    for path in paths:
-        text = str(path)
-        key = text.lower() if os.name == "nt" else text
-        if key in seen:
-            continue
-        seen.add(key)
-        if path.exists():
-            results.append(text)
-    return results
+from .platform_detector import PlatformDetector
 
 
 def _read_requirements_file(path: Path) -> list[str]:
@@ -148,96 +135,53 @@ def _resolve_requirements_path(repo_root: Path) -> Path:
 class EnvironmentInstaller:
     def __init__(self, repo_root: Path | None = None) -> None:
         self._repo_root = repo_root or get_ida_mcp_resources_dir()
+        self._detector = PlatformDetector()
 
-    def probe(self) -> EnvironmentProbe:
+    def probe(self, plugin_dir: str | None = None) -> EnvironmentProbe:
         warnings: list[str] = []
 
         python_executable = sys.executable or shutil.which("python")
         if not python_executable:
             warnings.append("python executable not detected")
-        plugin_candidates = self.find_plugin_dirs()
-        if not plugin_candidates:
+
+        # Check ida_mcp availability:
+        # 1. If an explicit plugin_dir is given, check that directly.
+        # 2. Otherwise, fall back to scanning standard IDA plugin locations.
+        ida_mcp_importable = False
+        ida_mcp_location: str | None = None
+
+        if plugin_dir:
+            p = Path(plugin_dir)
+            if (p / "ida_mcp.py").exists() and (p / "ida_mcp").exists():
+                ida_mcp_importable = True
+                ida_mcp_location = str(p)
+        if not ida_mcp_importable:
+            plugin_candidates = self._detector.find_plugin_dirs()
+            if plugin_candidates:
+                ida_mcp_importable = True
+                ida_mcp_location = plugin_candidates[0]
+
+        if not ida_mcp_importable:
             warnings.append("ida_mcp plugin directory not detected")
 
         return EnvironmentProbe(
             python_executable=python_executable,
             python_version=sys.version.split()[0],
-            ida_mcp_importable=bool(plugin_candidates),
-            ida_mcp_location=plugin_candidates[0] if plugin_candidates else None,
-            ida_path_candidates=self.find_ida_paths(),
-            ida_python_candidates=self.find_ida_python_paths(),
+            ida_mcp_importable=ida_mcp_importable,
+            ida_mcp_location=ida_mcp_location,
+            ida_path_candidates=self._detector.find_ida_paths(),
+            ida_python_candidates=self._detector.find_ida_python_paths(),
             warnings=warnings,
         )
 
     def find_plugin_dirs(self) -> list[str]:
-        candidates: list[Path] = []
-        repo_root = self._repo_root
-        candidates.extend(
-            [
-                repo_root,
-                repo_root / "plugins",
-                repo_root / "ida_plugins",
-            ]
-        )
-        valid: list[Path] = []
-        for candidate in candidates:
-            if not candidate.exists():
-                continue
-            if (candidate / "ida_mcp.py").exists() and (candidate / "ida_mcp").exists():
-                valid.append(candidate)
-        return _dedupe_paths(valid)
+        return self._detector.find_plugin_dirs()
 
     def find_ida_paths(self) -> list[str]:
-        candidates: list[Path] = []
-
-        if os.name == "nt":
-            for base in filter(
-                None,
-                [os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")],
-            ):
-                for name in ("IDA Pro", "IDA Professional"):
-                    root = Path(base) / name
-                    candidates.extend(
-                        [
-                            root / "ida64.exe",
-                            root / "ida.exe",
-                            root / "idat64.exe",
-                            root / "idat.exe",
-                        ]
-                    )
-        else:
-            candidates.extend(
-                [
-                    Path("/Applications/IDA Professional 9.0.app/Contents/MacOS/ida64"),
-                    Path("/Applications/IDA Professional 8.4.app/Contents/MacOS/ida64"),
-                    Path("/opt/idapro/ida64"),
-                    Path("/usr/local/bin/ida64"),
-                ]
-            )
-
-        repo_root = self._repo_root
-        candidates.extend(
-            [
-                repo_root / "ida64.exe",
-                repo_root / "ida.exe",
-            ]
-        )
-        return _dedupe_paths(candidates)
+        return self._detector.find_ida_paths()
 
     def find_ida_python_paths(self) -> list[str]:
-        candidates: list[Path] = []
-        current_python = shutil.which("python")
-        if current_python:
-            candidates.append(Path(current_python))
-
-        repo_root = self._repo_root
-        candidates.extend(
-            [
-                repo_root / "python.exe",
-                repo_root / "python" / "python.exe",
-            ]
-        )
-        return _dedupe_paths(candidates)
+        return self._detector.find_ida_python_paths()
 
     def check_installation(
         self,

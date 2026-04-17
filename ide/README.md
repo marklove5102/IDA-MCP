@@ -1,53 +1,41 @@
 # IDE
 
-`ide/` 是 IDA-MCP 的 PySide6 桌面 IDE 子项目。
+`ide/` 是 IDA-MCP 的 PySide6 桌面 IDE。
 
-它不是 Web 前端，也不是 IDA 插件；它是独立分发的桌面工作台，用来：
+它不是 Web 前端，也不是 IDA 插件；它是独立分发的桌面工作台，负责：
 
 - 安装、配置、启动、停止、检查 `ida_mcp`
-- 提供多 Agent 审计工作台
-- 提供 Chat / Files / Settings / Status 界面
-- 管理 workspace、SQLite、事件流、checkpoint 和文件查看
+- Gateway 生命周期管理与健康监控
+- 文件工作区（目录树 + hex/text/image 预览）
+- 设置页（中英双语，Config / Install / Upgrade）
+- 状态监控面板
 
-## 子项目结构
+## 运行
 
-```text
-ide/
-├── README.md
-├── roadmap.md
-├── project.md
-├── launcher.py
-├── bootstrap/
-├── app/
-├── packaging/
-├── supervisor/
-├── shared/
-└── tests/
+```bash
+python launcher.py
 ```
 
 ## 核心分层
 
-- `app/`：PySide6 UI 与应用装配
-- `packaging/`：Nuitka 打包脚本、分发配置与平台说明
-- `supervisor/`：安装、配置、进程管理、状态聚合
-- `shared/`：共享 DTO、事件、枚举、路径工具
-- `bootstrap/`：IDA 启动桥接脚本
+| 层 | 目录 | 职责 |
+|---|---|---|
+| UI | `app/ui/` | PySide6 页面与控件 |
+| 展示层 | `app/presenters/` | 数据映射（model ↔ form state） |
+| 服务层 | `app/services/` | 业务服务（supervisor 封装、设置、文件预览） |
+| 控制面 | `supervisor/` | Gateway 控制、安装、配置、环境探测 |
+| 共享 | `shared/` | 路径工具、ida_mcp config 读写 |
+| 资源 | `resources/ida_mcp/` | 受管 ida_mcp 源码（安装时复制到 IDA plugins/） |
+| 测试 | `tests/` | pytest |
 
-## 目标
+## 边界约束
 
-- 独立桌面分发
-- 不依赖 Web/React
-- 不安装到 IDA plugin 目录
-- 通过 supervisor 托管 `ida_mcp`
+- `ide/` 不在代码层面 import `ida_mcp` 的任何模块（无法在非 IDA Python 中运行）
+- `ida_mcp` 作为受管资源打包在 `resources/` 中
+- IDE 通过 subprocess 调用 `command.py` 启动 gateway
+- 安装探测只扫描 IDA 全局 plugins 目录，不扫描 resources 目录
+- 所有路径通过 `shared/paths.py` 管理，支持开发态和 Nuitka 打包态
 
-## 打包约束
+## 打包
 
-后续桌面分发目标是 **Nuitka**。
-
-因此当前实现遵守以下约束：
-
-- IDE 自身不依赖仓库源码树才能运行
-- `ida_mcp` 被视为外部被管理组件，而不是 IDE 内部包
-- 少用动态导入与隐式模块发现
-- 资源与运行时路径统一通过 `shared/paths.py` / `shared/runtime.py` 管理
-- 打包脚本与平台说明放在 `packaging/`
+Nuitka 打包脚本在 `packaging/build_nuitka.py`。打包时 `resources/` 目录会被包含在分发物中。

@@ -1,1 +1,0 @@
-"""IDA launcher placeholder."""

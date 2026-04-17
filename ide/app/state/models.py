@@ -1,1 +1,0 @@
-"""UI state models placeholder."""

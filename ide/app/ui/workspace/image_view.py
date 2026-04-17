@@ -15,24 +15,6 @@ from PySide6.QtWidgets import (
 )
 
 
-_IMAGE_EXTS = {
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".bmp",
-    ".webp",
-    ".svg",
-    ".ico",
-    ".tiff",
-    ".tif",
-}
-
-
-def is_image_file(path: str) -> bool:
-    return Path(path).suffix.lower() in _IMAGE_EXTS
-
-
 class ImageViewWidget(QWidget):
     """Display images with fit-to-window scaling and scroll for large images."""
 

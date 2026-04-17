@@ -1,1 +1,0 @@
-"""Process store placeholder."""

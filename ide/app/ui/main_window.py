@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from PySide6.QtCore import QTimer, QSize, Qt, QThread, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -27,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.i18n import I18n, normalize_language
+from app.services.gateway_manager import GatewayManager
 from app.ui.icons import make_sidebar_icons
 from app.presenters.main_window_presenter import (
     STATUS_CARD_TITLE_KEYS,
@@ -43,7 +41,7 @@ from app.ui.theme import Theme
 from app.ui.workspace.directory_tree import DirectoryTreeWidget
 from app.ui.workspace.hex_view import HexViewWidget
 from app.ui.workspace.code_view import CodeViewWidget
-from app.ui.workspace.image_view import ImageViewWidget, is_image_file
+from app.ui.workspace.image_view import ImageViewWidget
 
 
 SIDEBAR_ITEMS = (
@@ -54,37 +52,6 @@ SIDEBAR_ITEMS = (
 )
 
 
-class _GatewayWorker(QThread):
-    progress = Signal(str)
-    finished = Signal(object)  # SupervisorSnapshot
-
-    def __init__(self, action: str, supervisor_client, parent=None) -> None:
-        super().__init__(parent)
-        self._action = action
-        self._supervisor_client = supervisor_client
-
-    def run(self) -> None:
-        log = self.progress.emit
-        try:
-            if self._action == "refresh":
-                log("--- Refreshing status ---")
-                self._supervisor_client.get_snapshot(log=log)
-            elif self._action == "start":
-                log("--- Starting gateway ---")
-                self._supervisor_client.start_gateway(log=log)
-            elif self._action == "stop":
-                log("--- Stopping gateway ---")
-                self._supervisor_client.stop_gateway(log=log)
-            log("--- Refreshing final status ---")
-            self.finished.emit(self._supervisor_client.get_snapshot(log=log))
-        except Exception as exc:
-            log(f"Error: {exc}")
-            try:
-                self.finished.emit(self._supervisor_client.get_snapshot(log=log))
-            except Exception:
-                self.finished.emit(None)
-
-
 class MainWindow(QMainWindow):
     def __init__(self, supervisor_client: SupervisorClient | None = None) -> None:
         super().__init__()
@@ -93,16 +60,19 @@ class MainWindow(QMainWindow):
         self._i18n = I18n(self._language)
         self._snapshot: SupervisorSnapshot | None = None
 
-        self._activity_items: dict[str, QToolButton] = {}
-        self._panel_labels: dict[str, QLabel] = {}
-        self._status_card_titles: dict[str, QLabel] = {}
-        self._status_buttons: dict[str, QPushButton] = {}
-        self._menu_actions: dict[str, QAction] = {}
-
         self.resize(1520, 960)
 
+        # --- child widgets ---
         self._page_stack = QStackedWidget()
         self._activity_bar = QWidget()
+        self._activity_items: dict[str, QToolButton] = {}
+        self._panel_labels: dict[str, QLabel] = {}
+        self._status_cards: dict[str, QFrame] = {}
+        self._status_card_titles: dict[str, QLabel] = {}
+        self._status_state_labels: dict[str, QLabel] = {}
+        self._status_summary_labels: dict[str, QLabel] = {}
+        self._status_detail_labels: dict[str, QLabel] = {}
+        self._status_buttons: dict[str, QPushButton] = {}
 
         self._chat_view = QTextEdit()
         self._chat_view.setReadOnly(True)
@@ -120,24 +90,31 @@ class MainWindow(QMainWindow):
         self._dir_tree.file_selected.connect(self._on_file_selected)
 
         self._settings_view = SettingsPage(SettingsService(self.supervisor_client))
-        self._settings_view.language_changed.connect(self._set_language)
-        self._status_cards: dict[str, QWidget] = {}
-        self._status_state_labels: dict[str, QLabel] = {}
-        self._status_summary_labels: dict[str, QLabel] = {}
-        self._status_detail_labels: dict[str, QLabel] = {}
-        self._supervisor_menu = None
-        self._gateway_worker: _GatewayWorker | None = None
-        self._status_refresh_timer = QTimer(self)
-        self._status_refresh_timer.timeout.connect(self.refresh_snapshot)
+
+        # --- gateway lifecycle (extracted) ---
+        self._gateway = GatewayManager(self.supervisor_client)
+        self._gateway.snapshot_ready.connect(self._on_snapshot_ready)
+        self._gateway.log_message.connect(self._on_gateway_log)
+        self._gateway.busy_changed.connect(
+            lambda busy: self._set_status_buttons_enabled(not busy)
+        )
 
         self._build_shell()
-        self.refresh_snapshot()
+        self._gateway.refresh()
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _t(self, key: str, **kwargs: object) -> str:
         return self._i18n.t(key, **kwargs)
 
     def _load_language(self) -> str:
         return normalize_language(self.supervisor_client.get_ide_config().language)
+
+    # ------------------------------------------------------------------
+    # Shell construction
+    # ------------------------------------------------------------------
 
     def _build_shell(self) -> None:
         root = QWidget()
@@ -150,7 +127,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(root)
         self.setStatusBar(QStatusBar())
-        self._build_actions()
+        self._settings_view.language_changed.connect(self._set_language)
         self._retranslate_ui()
         self._apply_mode("chat")
         self._apply_theme()
@@ -245,27 +222,17 @@ class MainWindow(QMainWindow):
         return split
 
     def _on_file_selected(self, path: str) -> None:
-        """Handle file selection from the directory tree.
+        """Handle file selection from the directory tree."""
+        from app.services.file_preview_service import classify_file, PreviewKind
 
-        Routing: image → code (text) → hex (binary)
-        """
-        # 1. Image files
-        if is_image_file(path):
+        result = classify_file(path)
+        if result.kind == PreviewKind.IMAGE:
             self._image_view.load_file(path)
             self._file_view_stack.setCurrentIndex(2)
-            return
-
-        # 2. Try text
-        try:
-            data = Path(path).read_bytes()
-            sample = data[:8192]
-            if b"\x00" in sample:
-                raise ValueError("binary file")
-            text = data.decode("utf-8")
-            self._code_view.load_file(path, text=text)
+        elif result.kind == PreviewKind.TEXT:
+            self._code_view.load_file(path, text=result.text)
             self._file_view_stack.setCurrentIndex(1)
-        except (UnicodeDecodeError, ValueError):
-            # 3. Fallback to hex
+        else:
             self._hex_view.load_file(path)
             self._file_view_stack.setCurrentIndex(0)
 
@@ -279,7 +246,7 @@ class MainWindow(QMainWindow):
         controls_layout.setSpacing(8)
 
         refresh_button = QPushButton()
-        refresh_button.clicked.connect(self.refresh_snapshot)
+        refresh_button.clicked.connect(self._gateway.refresh)
         toggle_button = QPushButton()
         toggle_button.setObjectName("primaryButton")
         toggle_button.clicked.connect(self._toggle_gateway)
@@ -351,30 +318,6 @@ class MainWindow(QMainWindow):
         self._status_detail_labels[key] = details_label
         return card
 
-    def _build_actions(self) -> None:
-        refresh_action = QAction(self)
-        refresh_action.triggered.connect(self.refresh_snapshot)
-
-        start_gateway_action = QAction(self)
-        start_gateway_action.triggered.connect(self._start_gateway)
-
-        stop_gateway_action = QAction(self)
-
-        stop_gateway_action.triggered.connect(self._stop_gateway)
-
-        self._menu_actions = {
-            "refresh_status": refresh_action,
-            "start_gateway": start_gateway_action,
-            "stop_gateway": stop_gateway_action,
-        }
-
-        menu_bar = self.menuBar()
-        self._supervisor_menu = menu_bar.addMenu(self._t("main.menu.supervisor"))
-        self._supervisor_menu.addAction(refresh_action)
-        self._supervisor_menu.addSeparator()
-        self._supervisor_menu.addAction(start_gateway_action)
-        self._supervisor_menu.addAction(stop_gateway_action)
-
     def _build_panel(self, title_key: str, widget: QWidget, panel_key: str) -> QWidget:
         container = QFrame()
         container.setObjectName("panel")
@@ -389,6 +332,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(widget, 1)
         self._panel_labels[panel_key] = title_label
         return container
+
+    # ------------------------------------------------------------------
+    # Activity bar
+    # ------------------------------------------------------------------
 
     def _set_active_activity(self, mode: str) -> None:
         for key, button in self._activity_items.items():
@@ -407,38 +354,19 @@ class MainWindow(QMainWindow):
             2000,
         )
 
+    # ------------------------------------------------------------------
+    # Gateway lifecycle (delegated to GatewayManager)
+    # ------------------------------------------------------------------
+
     def _on_gateway_log(self, message: str) -> None:
-        from datetime import datetime
+        self._gateway_log.append(message)
 
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self._gateway_log.append(f"[{timestamp}] {message}")
-
-    def refresh_snapshot(self) -> None:
-        if self._gateway_worker and self._gateway_worker.isRunning():
-            return
-        self._set_status_buttons_enabled(False)
-        worker = _GatewayWorker("refresh", self.supervisor_client, parent=self)
-        self._gateway_worker = worker
-        worker.progress.connect(self._on_gateway_log)
-        worker.finished.connect(self._on_snapshot_ready)
-        worker.start()
-
-    def _on_snapshot_ready(self, snapshot: object) -> None:
-        self._set_status_buttons_enabled(True)
-        from supervisor.models import SupervisorSnapshot
-
-        if isinstance(snapshot, SupervisorSnapshot):
-            self._snapshot = snapshot
-            self._set_language(snapshot.config.language)
-            self._render_snapshot(snapshot)
-            self._update_toggle_button(snapshot)
-            self.statusBar().showMessage(self._t("main.statusbar.refreshed"), 3000)
-
-            if snapshot.gateway.alive:
-                if not self._status_refresh_timer.isActive():
-                    self._status_refresh_timer.start(10000)
-            else:
-                self._status_refresh_timer.stop()
+    def _on_snapshot_ready(self, snapshot: SupervisorSnapshot) -> None:
+        self._snapshot = snapshot
+        self._set_language(snapshot.config.language)
+        self._render_snapshot(snapshot)
+        self._update_toggle_button(snapshot)
+        self.statusBar().showMessage(self._t("main.statusbar.refreshed"), 3000)
 
     def _update_toggle_button(self, snapshot: SupervisorSnapshot) -> None:
         button = self._status_buttons.get("toggle_gateway")
@@ -454,7 +382,7 @@ class MainWindow(QMainWindow):
         button.style().polish(button)
 
     def _toggle_gateway(self) -> None:
-        if self._gateway_worker and self._gateway_worker.isRunning():
+        if self._gateway.is_busy:
             return
         if self._snapshot and self._snapshot.gateway.alive:
             self._stop_gateway()
@@ -462,13 +390,8 @@ class MainWindow(QMainWindow):
             self._start_gateway()
 
     def _start_gateway(self) -> None:
-        self._set_status_buttons_enabled(False)
         self.statusBar().showMessage(self._t("main.statusbar.starting"), 0)
-        worker = _GatewayWorker("start", self.supervisor_client, parent=self)
-        self._gateway_worker = worker
-        worker.progress.connect(self._on_gateway_log)
-        worker.finished.connect(self._on_snapshot_ready)
-        worker.start()
+        self._gateway.start_gateway()
 
     def _stop_gateway(self) -> None:
         reply = QMessageBox.question(
@@ -478,13 +401,16 @@ class MainWindow(QMainWindow):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        self._set_status_buttons_enabled(False)
         self.statusBar().showMessage(self._t("main.statusbar.stopping"), 0)
-        worker = _GatewayWorker("stop", self.supervisor_client, parent=self)
-        self._gateway_worker = worker
-        worker.progress.connect(self._on_gateway_log)
-        worker.finished.connect(self._on_snapshot_ready)
-        worker.start()
+        self._gateway.stop_gateway()
+
+    def _set_status_buttons_enabled(self, enabled: bool) -> None:
+        for button in self._status_buttons.values():
+            button.setEnabled(enabled)
+
+    # ------------------------------------------------------------------
+    # Snapshot rendering
+    # ------------------------------------------------------------------
 
     def _render_snapshot(self, snapshot: SupervisorSnapshot) -> None:
         view_model = build_main_window_view_model(snapshot, self._t)
@@ -515,14 +441,14 @@ class MainWindow(QMainWindow):
         card.style().unpolish(card)
         card.style().polish(card)
 
-    def _set_status_buttons_enabled(self, enabled: bool) -> None:
-        for button in self._status_buttons.values():
-            button.setEnabled(enabled)
-
     def _populate_tree(self, tree: QTreeWidget, rows: list[TreeRowViewModel]) -> None:
         tree.clear()
         for row in rows:
             QTreeWidgetItem(tree, [row.label, row.value])
+
+    # ------------------------------------------------------------------
+    # Language & theme
+    # ------------------------------------------------------------------
 
     def _set_language(self, language: str | None) -> None:
         normalized = normalize_language(language)
@@ -567,21 +493,9 @@ class MainWindow(QMainWindow):
                 self._t("main.action.start_gateway")
             )
 
-        self._menu_actions["refresh_status"].setText(
-            self._t("main.action.refresh_status")
-        )
-        self._menu_actions["start_gateway"].setText(
-            self._t("main.action.start_gateway")
-        )
-        self._menu_actions["stop_gateway"].setText(self._t("main.action.stop_gateway"))
-
-        if self._supervisor_menu is not None:
-            self._supervisor_menu.setTitle(self._t("main.menu.supervisor"))
-
         if self._snapshot is not None:
             self._render_snapshot(self._snapshot)
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(Theme.light().stylesheet())
         self._refresh_sidebar_icons()
-        self.refresh_snapshot()

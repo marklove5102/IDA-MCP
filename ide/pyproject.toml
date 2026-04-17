@@ -13,18 +13,20 @@ authors = [
   { name = "IDA-MCP Contributors" }
 ]
 dependencies = [
-  "PySide6==6.11.0",
-  "deepagents==0.5.2",
-  "langgraph==1.1.6",
-  "pydantic==2.12.5",
+   "PySide6==6.11.0",
+   "deepagents==0.5.3",
+   "langgraph==1.1.6",
+   "pydantic==2.13.1",
+   "pygments==2.20.0",
+   "markdown==3.10.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "nuitka==2.8.4",
-  "pytest==9.0.3",
-  "pur==7.3.3",
-  "zstandard==0.25.0",
+   "nuitka==4.0.8",
+   "pytest==9.0.3",
+   "pur==7.3.3",
+   "zstandard==0.25.0",
 ]
 
 [project.scripts]
