@@ -179,8 +179,9 @@ class Theme:
         /* ---- Panels ---- */
         QFrame#panel {{
             background: {c.panel_bg};
-            border: 1px solid {c.border};
-            border-radius: 10px;
+            border: none;
+            border-right: 1px solid {c.border_light};
+            border-radius: 0;
         }}
         QLabel#panelTitle {{
             color: {c.text_primary};
@@ -231,12 +232,11 @@ class Theme:
         QTextBrowser#codePreview,
         QScrollArea#imageScroll {{
             border: none;
-            border-radius: 8px;
+            border-radius: 0;
             background: {c.input_bg};
         }}
         QTreeView#dirTreeView::item {{
             padding: 4px 6px;
-            border-radius: 4px;
             margin: 1px 2px;
         }}
         QTreeView#dirTreeView::item:selected {{
@@ -266,8 +266,9 @@ class Theme:
         }}
         QFrame#settingsGroup {{
             background: {c.panel_bg};
-            border: 1px solid {c.border};
-            border-radius: 10px;
+            border: none;
+            border-top: 1px solid {c.border_light};
+            border-radius: 0;
             padding: 4px;
         }}
         QLabel#settingsGroupTitle {{
@@ -302,7 +303,7 @@ class Theme:
             background: {c.input_bg};
             color: {c.text_primary};
             border: 1px solid {c.border};
-            border-radius: 6px;
+            border-radius: 0;
             padding: 6px 8px;
             selection-background-color: {c.accent};
             selection-color: {c.accent_text};
@@ -321,8 +322,8 @@ class Theme:
         /* ---- Status cards ---- */
         QFrame#statusCard {{
             background: {c.panel_bg};
-            border: 1px solid {c.border};
-            border-radius: 10px;
+            border: none;
+            border-top: 1px solid {c.border_light};
             border-left: 4px solid {c.border};
         }}
         QFrame#statusCard[state="ok"] {{
@@ -382,7 +383,7 @@ class Theme:
             background: {c.button_bg};
             color: {c.button_text};
             border: 1px solid {c.button_border};
-            border-radius: 6px;
+            border-radius: 0;
             padding: 8px 16px;
             font-weight: 500;
             font-size: 13px;
@@ -418,7 +419,7 @@ class Theme:
             background: transparent;
             color: {c.text_secondary};
             border: 1px solid transparent;
-            border-radius: 6px;
+            border-radius: 0;
             font-weight: 600;
             font-size: 12px;
             padding: 6px 10px;
@@ -446,18 +447,18 @@ class Theme:
             background: {c.panel_bg};
             color: {c.text_primary};
             border: 1px solid {c.border};
-            border-radius: 8px;
+            border-radius: 0;
             padding: 4px;
         }}
         QMenuBar::item:selected {{
             background: {c.accent_subtle};
             color: {c.accent};
-            border-radius: 4px;
+            border-radius: 0;
         }}
         QMenu::item:selected {{
             background: {c.accent};
             color: {c.accent_text};
-            border-radius: 4px;
+            border-radius: 0;
         }}
         QListWidget#settingsCategoryList {{
             background: {c.sidebar_bg};
@@ -469,7 +470,7 @@ class Theme:
         }}
         QListWidget#settingsCategoryList::item {{
             padding: 10px 12px;
-            border-radius: 6px;
+            border-radius: 0;
             margin: 2px 4px;
             font-weight: 500;
             font-size: 13px;
@@ -573,7 +574,7 @@ class Theme:
         /* ---- Tab bar (QTabBar in QTabWidget) ---- */
         QTabWidget::pane {{
             border: 1px solid {c.border};
-            border-radius: 8px;
+            border-radius: 0;
             background: {c.panel_bg};
         }}
         QTabBar::tab {{
@@ -599,7 +600,7 @@ class Theme:
             background: {c.panel_bg};
             color: {c.text_primary};
             border: 1px solid {c.border};
-            border-radius: 6px;
+            border-radius: 0;
             padding: 6px 10px;
             font-size: 12px;
         }}
