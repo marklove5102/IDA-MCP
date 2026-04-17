@@ -190,6 +190,72 @@ class Theme:
             text-transform: uppercase;
         }}
 
+        /* ---- FS workspace minimal polish ---- */
+        QSplitter#fsWorkspaceSplit::handle {{
+            background: {c.border_light};
+            width: 4px;
+        }}
+        QSplitter#fsWorkspaceSplit::handle:hover {{
+            background: {c.border};
+        }}
+        QWidget#dirTreeToolbar,
+        QWidget#codeToolbar,
+        QWidget#hexToolbar,
+        QWidget#imageToolbar {{
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid {c.border_light};
+        }}
+        QLabel#codePathLabel,
+        QLabel#hexPathLabel,
+        QLabel#imagePathLabel {{
+            color: {c.text_primary};
+            font-size: 13px;
+            font-weight: 600;
+        }}
+        QLabel#hexSizeLabel,
+        QLabel#imageSizeLabel {{
+            color: {c.text_secondary};
+            font-size: 12px;
+        }}
+        QLabel#hexReadonlyLabel {{
+            color: {c.text_secondary};
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 0 2px;
+        }}
+        QTreeView#dirTreeView,
+        QTextEdit#codeEditor,
+        QTextEdit#hexContent,
+        QTextBrowser#codePreview,
+        QScrollArea#imageScroll {{
+            border: none;
+            border-radius: 8px;
+            background: {c.input_bg};
+        }}
+        QTreeView#dirTreeView::item {{
+            padding: 4px 6px;
+            border-radius: 4px;
+            margin: 1px 2px;
+        }}
+        QTreeView#dirTreeView::item:selected {{
+            background: {c.hover_bg};
+            color: {c.text_primary};
+        }}
+        QLabel#imageLabel {{
+            color: {c.text_secondary};
+            font-size: 13px;
+            padding: 18px;
+        }}
+        QPushButton#openFolderButton,
+        QPushButton#codeSaveButton,
+        QPushButton#codeMdToggle,
+        QPushButton#hexEditToggle,
+        QPushButton#hexSaveButton {{
+            padding: 6px 12px;
+        }}
+
         /* ---- Settings page typography ---- */
         QLabel#settingsTitle {{
             color: {c.text_primary};

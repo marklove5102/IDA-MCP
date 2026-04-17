@@ -140,7 +140,7 @@ class CodeViewWidget(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("codeToolbar")
         tb = QHBoxLayout(toolbar)
-        tb.setContentsMargins(8, 6, 8, 6)
+        tb.setContentsMargins(10, 8, 10, 8)
         tb.setSpacing(8)
 
         self._path_label = QLabel("No file opened")
@@ -167,7 +167,7 @@ class CodeViewWidget(QWidget):
         self._editor.setObjectName("codeEditor")
         self._editor.setFont(_MONO_FONT)
         self._editor.setLineWrapMode(QTextEdit.NoWrap)
-        self._editor.setPlaceholderText("Open a file from the directory tree…")
+        self._editor.setPlaceholderText("Open a file from the directory tree...")
 
         # Syntax highlighter attached to the editor's document
         self._highlighter = _PygmentsHighlighter(self._editor.document())

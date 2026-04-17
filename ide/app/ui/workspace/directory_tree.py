@@ -34,7 +34,7 @@ class DirectoryTreeWidget(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("dirTreeToolbar")
         toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(8, 6, 8, 6)
+        toolbar_layout.setContentsMargins(10, 8, 10, 8)
 
         self._open_btn = QPushButton("Open Folder")
         self._open_btn.setObjectName("openFolderButton")
@@ -55,6 +55,7 @@ class DirectoryTreeWidget(QWidget):
         self._tree.setHeaderHidden(True)
         self._tree.setAnimated(True)
         self._tree.setIndentation(16)
+        self._tree.setUniformRowHeights(True)
         self._tree.setSortingEnabled(True)
         self._tree.sortByColumn(0, Qt.SortOrder.AscendingOrder)
         self._tree.doubleClicked.connect(self._on_double_click)

@@ -214,11 +214,13 @@ class MainWindow(QMainWindow):
         self._file_view_stack.addWidget(self._image_view)
 
         split = QSplitter(Qt.Horizontal)
+        split.setObjectName("fsWorkspaceSplit")
         split.addWidget(
             self._build_panel("main.panel.workspace", self._dir_tree, "workspace_fs")
         )
         split.addWidget(self._build_panel("main.panel.fs", self._file_view_stack, "fs"))
-        split.setSizes([280, 1140])
+        split.setChildrenCollapsible(False)
+        split.setSizes([300, 1120])
         return split
 
     def _on_file_selected(self, path: str) -> None:

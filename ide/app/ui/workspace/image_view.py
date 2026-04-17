@@ -30,7 +30,7 @@ class ImageViewWidget(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("imageToolbar")
         tb = QHBoxLayout(toolbar)
-        tb.setContentsMargins(8, 6, 8, 6)
+        tb.setContentsMargins(10, 8, 10, 8)
         tb.setSpacing(8)
 
         self._path_label = QLabel("No image opened")

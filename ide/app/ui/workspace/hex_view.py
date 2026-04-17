@@ -80,7 +80,7 @@ class HexViewWidget(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("hexToolbar")
         toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(8, 6, 8, 6)
+        toolbar_layout.setContentsMargins(10, 8, 10, 8)
         toolbar_layout.setSpacing(8)
 
         self._path_label = QLabel("No file opened")
