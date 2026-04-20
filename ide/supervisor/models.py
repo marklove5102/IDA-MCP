@@ -264,3 +264,85 @@ class SupervisorSnapshot:
     gateway: GatewayStatus
     environment: EnvironmentProbe
     health: HealthReport
+
+
+# ---------------------------------------------------------------------------
+# Chat agent config models (stored in SQLite)
+# ---------------------------------------------------------------------------
+
+# API mode constants
+API_MODE_OPENAI_RESPONSES = "openai_responses"
+API_MODE_OPENAI_COMPATIBLE = "openai_compatible"
+API_MODE_ANTHROPIC = "anthropic"
+API_MODE_GEMINI = "gemini"
+
+ALL_API_MODES = (
+    API_MODE_OPENAI_RESPONSES,
+    API_MODE_OPENAI_COMPATIBLE,
+    API_MODE_ANTHROPIC,
+    API_MODE_GEMINI,
+)
+
+
+@dataclass(slots=True)
+class ModelProvider:
+    """A single LLM model provider entry."""
+    id: int | None = None
+    name: str = ""
+    base_url: str = ""
+    api_key: str = ""
+    api_mode: str = API_MODE_OPENAI_COMPATIBLE
+    model_name: str = ""
+    top_p: float = 1.0
+    temperature: float = 0.7
+    enabled: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ModelProvider":
+        if not data:
+            return cls()
+        allowed = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in data.items() if k in allowed})
+
+
+@dataclass(slots=True)
+class McpServerEntry:
+    """A single MCP server connection used by the chat agent."""
+    id: int | None = None
+    name: str = ""
+    url: str = ""
+    enabled: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["id"] = d["id"]  # keep id in dict for upsert
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "McpServerEntry":
+        if not data:
+            return cls()
+        allowed = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in data.items() if k in allowed})
+
+
+@dataclass(slots=True)
+class SkillEntry:
+    """A skill registered for the chat agent."""
+    id: int | None = None
+    name: str = ""
+    description: str = ""
+    enabled: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "SkillEntry":
+        if not data:
+            return cls()
+        allowed = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in data.items() if k in allowed})

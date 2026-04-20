@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Qt, Signal
-from PySide6.QtWidgets import QFileDialog
 
 from shared.platform import display_path as _display_path
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
     QFrame,
     QHeaderView,
     QHBoxLayout,
@@ -53,6 +57,165 @@ class NoWheelSpinBox(QSpinBox):
 class NoWheelComboBox(QComboBox):
     def wheelEvent(self, event) -> None:  # type: ignore[override]
         event.ignore()
+
+
+class NoWheelDoubleSpinBox(QDoubleSpinBox):
+    def wheelEvent(self, event) -> None:  # type: ignore[override]
+        event.ignore()
+
+
+# ===================================================================
+# Model provider dialog
+# ===================================================================
+
+class ModelProviderDialog(QDialog):
+    """Dialog for adding or editing a model provider entry."""
+
+    def __init__(
+        self,
+        i18n,
+        *,
+        provider=None,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._i18n = i18n
+        self._provider = provider  # None = add new, else edit existing
+        self._setup_ui()
+
+    def _t(self, key: str, **kwargs: object) -> str:
+        return self._i18n.t(key, **kwargs)
+
+    def _setup_ui(self) -> None:
+        self.setWindowTitle(
+            self._t("settings.model.dialog.add")
+            if self._provider is None
+            else self._t("settings.model.dialog.edit")
+        )
+        self.setMinimumWidth(480)
+
+        form = QFormLayout(self)
+        form.setSpacing(10)
+        form.setContentsMargins(20, 20, 20, 20)
+
+        # Name
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("My GPT-4o")
+        form.addRow(self._t("settings.field.model_name"), self._name_edit)
+
+        # Base URL
+        self._base_url_edit = QLineEdit()
+        self._base_url_edit.setPlaceholderText("https://api.openai.com/v1")
+        form.addRow(self._t("settings.field.model_base_url"), self._base_url_edit)
+
+        # API Key
+        self._api_key_edit = QLineEdit()
+        self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_key_edit.setPlaceholderText("sk-...")
+        form.addRow(self._t("settings.field.model_api_key"), self._api_key_edit)
+
+        # Model ID
+        self._model_id_edit = QLineEdit()
+        self._model_id_edit.setPlaceholderText("gpt-4o")
+        form.addRow(self._t("settings.field.model_id"), self._model_id_edit)
+
+        # API Mode
+        self._api_mode_combo = NoWheelComboBox()
+        self._api_mode_items = [
+            ("openai_responses", self._t("settings.model.api_mode.openai_responses")),
+            ("openai_compatible", self._t("settings.model.api_mode.openai_compatible")),
+            ("anthropic", self._t("settings.model.api_mode.anthropic")),
+            ("gemini", self._t("settings.model.api_mode.gemini")),
+        ]
+        for value, label in self._api_mode_items:
+            self._api_mode_combo.addItem(label, value)
+        self._api_mode_combo.setCurrentIndex(1)  # default: openai_compatible
+        form.addRow(self._t("settings.field.model_api_mode"), self._api_mode_combo)
+
+        # Top-P
+        self._top_p_spin = NoWheelDoubleSpinBox()
+        self._top_p_spin.setRange(0.0, 1.0)
+        self._top_p_spin.setSingleStep(0.05)
+        self._top_p_spin.setDecimals(2)
+        self._top_p_spin.setValue(1.0)
+        form.addRow(self._t("settings.field.model_top_p"), self._top_p_spin)
+
+        # Temperature
+        self._temp_spin = NoWheelDoubleSpinBox()
+        self._temp_spin.setRange(0.0, 2.0)
+        self._temp_spin.setSingleStep(0.1)
+        self._temp_spin.setDecimals(1)
+        self._temp_spin.setValue(0.7)
+        form.addRow(self._t("settings.field.model_temperature"), self._temp_spin)
+
+        # Enabled
+        self._enabled_check = QCheckBox()
+        self._enabled_check.setChecked(True)
+        form.addRow(self._t("settings.skills.enabled"), self._enabled_check)
+
+        # Buttons
+        self._buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        self._buttons.accepted.connect(self._validate_and_accept)
+        self._buttons.rejected.connect(self.reject)
+        form.addRow(self._buttons)
+
+        # Validation error label (hidden until needed)
+        self._error_label = QLabel("")
+        self._error_label.setObjectName("settingsErrorLabel")
+        self._error_label.setStyleSheet("color: #ef4444; font-size: 12px;")
+        self._error_label.setWordWrap(True)
+        self._error_label.hide()
+        form.addRow(self._error_label)
+
+        # Pre-fill if editing
+        if self._provider is not None:
+            self._name_edit.setText(self._provider.name or "")
+            self._base_url_edit.setText(self._provider.base_url or "")
+            self._api_key_edit.setText(self._provider.api_key or "")
+            self._model_id_edit.setText(self._provider.model_name or "")
+            self._top_p_spin.setValue(self._provider.top_p)
+            self._temp_spin.setValue(self._provider.temperature)
+            self._enabled_check.setChecked(self._provider.enabled)
+            # Set api_mode combo
+            for i, (value, _) in enumerate(self._api_mode_items):
+                if value == self._provider.api_mode:
+                    self._api_mode_combo.setCurrentIndex(i)
+                    break
+
+    def get_values(self) -> dict:
+        """Return a dict of all field values."""
+        return {
+            "name": self._name_edit.text().strip(),
+            "base_url": self._base_url_edit.text().strip(),
+            "api_key": self._api_key_edit.text().strip(),
+            "api_mode": self._api_mode_combo.currentData() or "openai_compatible",
+            "model_name": self._model_id_edit.text().strip(),
+            "top_p": self._top_p_spin.value(),
+            "temperature": self._temp_spin.value(),
+            "enabled": self._enabled_check.isChecked(),
+        }
+
+    def _validate_and_accept(self) -> None:
+        """Validate required fields before accepting the dialog."""
+        errors: list[str] = []
+        name = self._name_edit.text().strip()
+        model_id = self._model_id_edit.text().strip()
+
+        if not name:
+            errors.append(self._t("settings.model.validation.name_required"))
+        if not model_id:
+            errors.append(self._t("settings.model.validation.model_id_required"))
+
+        if errors:
+            self._error_label.setText("\n".join(errors))
+            self._error_label.show()
+            return
+
+        self._error_label.hide()
+        self.accept()
 
 
 # ===================================================================
@@ -411,6 +574,58 @@ class SettingsPage(QWidget):
         self._ida_request_timeout.setSuffix(" s")
         self._debug = QCheckBox()
         self._advanced_container = QWidget()
+
+        # --- Model providers widgets ---
+        self._model_providers_table = QTableWidget(0, 6)
+        self._model_providers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._model_providers_table.setSelectionMode(QTableWidget.NoSelection)
+        self._model_providers_table.verticalHeader().setVisible(False)
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeToContents
+        )
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.Stretch
+        )
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.Stretch
+        )
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeToContents
+        )
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeToContents
+        )
+        self._model_providers_table.horizontalHeader().setSectionResizeMode(
+            5, QHeaderView.ResizeToContents
+        )
+
+        # --- MCP settings widgets ---
+        self._mcp_servers_table = QTableWidget(0, 2)
+        self._mcp_servers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._mcp_servers_table.setSelectionMode(QTableWidget.SingleSelection)
+        self._mcp_servers_table.verticalHeader().setVisible(False)
+        self._mcp_servers_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.Stretch
+        )
+        self._mcp_servers_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeToContents
+        )
+
+        # --- Skills table ---
+        self._skills_table = QTableWidget(0, 3)
+        self._skills_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._skills_table.setSelectionMode(QTableWidget.NoSelection)
+        self._skills_table.verticalHeader().setVisible(False)
+        self._skills_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeToContents
+        )
+        self._skills_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.Stretch
+        )
+        self._skills_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeToContents
+        )
+
         self._advanced_layout = QVBoxLayout(self._advanced_container)
         self._advanced_layout.setContentsMargins(0, 0, 0, 0)
         self._advanced_layout.setSpacing(12)
@@ -485,6 +700,9 @@ class SettingsPage(QWidget):
             self._t("settings.category.config"),
             self._t("settings.category.install"),
             self._t("settings.category.upgrade"),
+            self._t("settings.category.model"),
+            self._t("settings.category.mcp_settings"),
+            self._t("settings.category.skills"),
         ):
             item = QListWidgetItem(name)
             font = item.font()
@@ -507,6 +725,9 @@ class SettingsPage(QWidget):
         self._stack.addWidget(self._build_config_page())
         self._stack.addWidget(self._build_install_page())
         self._stack.addWidget(self._build_upgrade_page())
+        self._stack.addWidget(self._build_model_page())
+        self._stack.addWidget(self._build_mcp_settings_page())
+        self._stack.addWidget(self._build_skills_page())
 
         if current_row < 0:
             current_row = 0
@@ -718,6 +939,193 @@ class SettingsPage(QWidget):
         layout.addWidget(self._upgrade_notes)
         layout.addStretch(1)
         return widget
+
+    # ------------------------------------------------------------------
+    # Model providers page
+    # ------------------------------------------------------------------
+
+    def _build_model_page(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self._model_providers_table.setHorizontalHeaderLabels(
+            [
+                self._t("settings.field.model_name"),
+                self._t("settings.field.model_base_url"),
+                self._t("settings.field.model_id"),
+                self._t("settings.field.model_api_mode"),
+                self._t("settings.skills.enabled"),
+                "",
+            ]
+        )
+
+        layout.addWidget(
+            self._build_config_group(
+                self._t("settings.group.model_providers"),
+                self._t("settings.group.model_providers.desc"),
+                [self._model_providers_table],
+            )
+        )
+
+        self._model_providers_table.cellDoubleClicked.connect(self._edit_model_provider)
+
+        action_bar = QWidget()
+        action_bar_layout = QHBoxLayout(action_bar)
+        action_bar_layout.setContentsMargins(0, 0, 0, 0)
+        action_bar_layout.setSpacing(8)
+        add_button = QPushButton(self._t("settings.model.add"))
+        add_button.setObjectName("primaryButton")
+        add_button.clicked.connect(self._add_model_provider)
+        action_bar_layout.addWidget(add_button)
+        action_bar_layout.addStretch(1)
+        layout.addWidget(action_bar)
+
+        layout.addStretch(1)
+        layout.addWidget(self._build_save_bar(show_hint=True))
+        return self._wrap_scroll(widget)
+
+    def _add_model_provider(self) -> None:
+        dialog = ModelProviderDialog(self._i18n, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.get_values()
+        self._settings_service.add_model_provider(**values)
+        self._refresh_model_providers_table()
+
+    def _edit_model_provider(self, row: int, _col: int) -> None:
+        item = self._model_providers_table.item(row, 0)
+        if item is None:
+            return
+        provider_id = item.data(Qt.ItemDataRole.UserRole)
+        if provider_id is None:
+            return
+        providers = self._settings_service.get_model_providers()
+        provider = next((p for p in providers if p.id == provider_id), None)
+        if provider is None:
+            return
+        dialog = ModelProviderDialog(self._i18n, provider=provider, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.get_values()
+        self._settings_service.update_model_provider(provider_id, **values)
+        self._refresh_model_providers_table()
+
+    def _delete_model_provider(self, provider_id: int) -> None:
+        self._settings_service.remove_model_provider(provider_id)
+        self._refresh_model_providers_table()
+
+    def _refresh_model_providers_table(self) -> None:
+        api_mode_labels = {
+            "openai_responses": self._t("settings.model.api_mode.openai_responses"),
+            "openai_compatible": self._t("settings.model.api_mode.openai_compatible"),
+            "anthropic": self._t("settings.model.api_mode.anthropic"),
+            "gemini": self._t("settings.model.api_mode.gemini"),
+        }
+
+        providers = self._settings_service.get_model_providers()
+        self._model_providers_table.setRowCount(len(providers))
+        for row_index, provider in enumerate(providers):
+            name_item = QTableWidgetItem(provider.name or "")
+            name_item.setData(Qt.ItemDataRole.UserRole, provider.id)
+            self._model_providers_table.setItem(row_index, 0, name_item)
+            self._model_providers_table.setItem(
+                row_index, 1, QTableWidgetItem(provider.base_url or "")
+            )
+            self._model_providers_table.setItem(
+                row_index, 2, QTableWidgetItem(provider.model_name or "")
+            )
+            self._model_providers_table.setItem(
+                row_index, 3,
+                QTableWidgetItem(api_mode_labels.get(provider.api_mode, provider.api_mode)),
+            )
+            enabled_item = QTableWidgetItem(
+                self._t("settings.bool.yes") if provider.enabled else self._t("settings.bool.no")
+            )
+            self._model_providers_table.setItem(row_index, 4, enabled_item)
+
+            # Per-row delete button
+            btn_widget = QWidget()
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.setContentsMargins(4, 2, 4, 2)
+            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            del_btn = QPushButton(self._t("settings.model.remove"))
+            del_btn.setFixedHeight(26)
+            del_btn.clicked.connect(
+                lambda checked, pid=provider.id: self._delete_model_provider(pid)
+            )
+            btn_layout.addWidget(del_btn)
+            self._model_providers_table.setCellWidget(row_index, 5, btn_widget)
+
+    # ------------------------------------------------------------------
+    # MCP settings page
+    # ------------------------------------------------------------------
+
+    def _build_mcp_settings_page(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self._mcp_servers_table.setHorizontalHeaderLabels(
+            [
+                self._t("settings.field.mcp_server_name"),
+                self._t("settings.field.mcp_server_url"),
+            ]
+        )
+
+        layout.addWidget(
+            self._build_config_group(
+                self._t("settings.group.mcp_servers"),
+                self._t("settings.group.mcp_servers.desc"),
+                [self._mcp_servers_table],
+            )
+        )
+
+        action_bar = QWidget()
+        action_bar_layout = QHBoxLayout(action_bar)
+        action_bar_layout.setContentsMargins(0, 0, 0, 0)
+        action_bar_layout.setSpacing(8)
+        add_button = QPushButton(self._t("settings.mcp.add"))
+        remove_button = QPushButton(self._t("settings.mcp.remove"))
+        action_bar_layout.addWidget(add_button)
+        action_bar_layout.addWidget(remove_button)
+        action_bar_layout.addStretch(1)
+        layout.addWidget(action_bar)
+
+        layout.addStretch(1)
+        layout.addWidget(self._build_save_bar(show_hint=True))
+        return self._wrap_scroll(widget)
+
+    # ------------------------------------------------------------------
+    # Skills settings page
+    # ------------------------------------------------------------------
+
+    def _build_skills_page(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self._skills_table.setHorizontalHeaderLabels(
+            [
+                self._t("settings.skills.enabled"),
+                self._t("settings.skills.name"),
+                self._t("settings.skills.description"),
+            ]
+        )
+
+        layout.addWidget(
+            self._build_config_group(
+                self._t("settings.group.skills_registry"),
+                self._t("settings.group.skills_registry.desc"),
+                [self._skills_table],
+            )
+        )
+
+        layout.addStretch(1)
+        return self._wrap_scroll(widget)
 
     # ------------------------------------------------------------------
     # Snapshot / state application

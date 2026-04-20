@@ -1,6 +1,14 @@
 from pathlib import Path
 
+from shared.database import DatabaseStore
 from shared.ida_mcp_config import IdaMcpConfigStore
+
+
+def _make_store(tmp_path: Path, config_path: Path | None = None) -> IdaMcpConfigStore:
+    """Create an IdaMcpConfigStore with an isolated test database."""
+    db = DatabaseStore(db_path=tmp_path / "test.db")
+    path = config_path or (tmp_path / "config.conf")
+    return IdaMcpConfigStore(config_path=path, db=db)
 
 
 def test_ida_mcp_config_store_loads_and_preserves_unknown_lines(tmp_path: Path) -> None:
@@ -19,7 +27,7 @@ def test_ida_mcp_config_store_loads_and_preserves_unknown_lines(tmp_path: Path) 
         encoding="utf-8",
     )
 
-    store = IdaMcpConfigStore(config_path)
+    store = _make_store(tmp_path, config_path)
     config = store.load()
 
     assert config.enable_http is True
@@ -57,7 +65,7 @@ def test_ida_mcp_config_store_round_trips_extended_runtime_fields(
         encoding="utf-8",
     )
 
-    store = IdaMcpConfigStore(config_path)
+    store = _make_store(tmp_path, config_path)
     config = store.load()
 
     assert config.wsl_path_bridge is True

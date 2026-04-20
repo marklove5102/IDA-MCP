@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from shared.database import DatabaseStore
 from shared.ida_mcp_config import IdaMcpConfigStore
 
 from .config_store import IdeConfigStore
@@ -18,6 +19,9 @@ from .models import (
     InstallationActionResult,
     InstallationCheck,
     IdeConfig,
+    McpServerEntry,
+    ModelProvider,
+    SkillEntry,
     SupervisorSnapshot,
 )
 
@@ -31,6 +35,7 @@ class SupervisorManager:
         gateway_controller: GatewayController | None = None,
     ) -> None:
         self.config_store = config_store or IdeConfigStore()
+        self._shared_db = self.config_store.database
         self.ida_mcp_config_store = ida_mcp_config_store
         self.installer = installer or EnvironmentInstaller()
         self.gateway_controller = gateway_controller or GatewayController(
@@ -41,7 +46,7 @@ class SupervisorManager:
         if self.ida_mcp_config_store is not None:
             return self.ida_mcp_config_store
         config = self.config_store.load()
-        return IdaMcpConfigStore(plugin_dir=config.plugin_dir)
+        return IdaMcpConfigStore(plugin_dir=config.plugin_dir, db=self._shared_db)
 
     def get_ide_config(self) -> IdeConfig:
         return self.config_store.load()
@@ -173,3 +178,81 @@ class SupervisorManager:
             environment=environment,
             health=health,
         )
+
+    # ------------------------------------------------------------------
+    # Model providers (SQLite)
+    # ------------------------------------------------------------------
+
+    def get_model_providers(self) -> list[ModelProvider]:
+        rows = self._shared_db.load_rows("model_providers")
+        return [ModelProvider.from_dict(r) for r in rows]
+
+    def add_model_provider(
+        self,
+        name: str = "",
+        base_url: str = "",
+        api_key: str = "",
+        api_mode: str = "openai_compatible",
+        model_name: str = "",
+        top_p: float = 1.0,
+        temperature: float = 0.7,
+        *,
+        enabled: bool = True,
+    ) -> int:
+        return self._shared_db.insert_row(
+            "model_providers",
+            name=name,
+            base_url=base_url,
+            api_key=api_key,
+            api_mode=api_mode,
+            model_name=model_name,
+            top_p=top_p,
+            temperature=temperature,
+            enabled=enabled,
+        )
+
+    def update_model_provider(self, provider_id: int, **updates: object) -> bool:
+        return self._shared_db.update_row("model_providers", provider_id, **updates)
+
+    def remove_model_provider(self, provider_id: int) -> bool:
+        return self._shared_db.delete_row("model_providers", provider_id)
+
+    # ------------------------------------------------------------------
+    # MCP servers (SQLite)
+    # ------------------------------------------------------------------
+
+    def get_mcp_servers(self) -> list[McpServerEntry]:
+        rows = self._shared_db.load_rows("mcp_servers")
+        return [McpServerEntry.from_dict(r) for r in rows]
+
+    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
+        return self._shared_db.insert_row(
+            "mcp_servers", name=name, url=url, enabled=enabled
+        )
+
+    def update_mcp_server(self, server_id: int, **updates: object) -> bool:
+        return self._shared_db.update_row("mcp_servers", server_id, **updates)
+
+    def remove_mcp_server(self, server_id: int) -> bool:
+        return self._shared_db.delete_row("mcp_servers", server_id)
+
+    # ------------------------------------------------------------------
+    # Skills (SQLite)
+    # ------------------------------------------------------------------
+
+    def get_skills(self) -> list[SkillEntry]:
+        rows = self._shared_db.load_rows("skills")
+        return [SkillEntry.from_dict(r) for r in rows]
+
+    def add_skill(
+        self, name: str, description: str = "", *, enabled: bool = True
+    ) -> int:
+        return self._shared_db.insert_row(
+            "skills", name=name, description=description, enabled=enabled
+        )
+
+    def update_skill(self, skill_id: int, **updates: object) -> bool:
+        return self._shared_db.update_row("skills", skill_id, **updates)
+
+    def remove_skill(self, skill_id: int) -> bool:
+        return self._shared_db.delete_row("skills", skill_id)

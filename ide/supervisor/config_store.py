@@ -1,46 +1,71 @@
-"""User-level JSON config store for the IDE MVP."""
+"""User-level config store for the IDE, backed by SQLite.
+
+Replaces the original JSON-based IdeConfigStore while preserving the
+same public API so callers (SupervisorManager, tests) are unaffected.
+"""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from shared.database import DatabaseStore
 from shared.paths import ensure_directory, get_ide_user_config_root
 
 from .models import ConfigStoreInfo, IdeConfig
 
 
+# Legacy filename kept for reference / migration detection.
 DEFAULT_CONFIG_FILENAME = "ide_config.json"
 
 
 class IdeConfigStore:
-    def __init__(self, config_path: Path | None = None) -> None:
-        root = ensure_directory(get_ide_user_config_root())
-        self._config_path = config_path or (root / DEFAULT_CONFIG_FILENAME)
+    """SQLite-backed store for IdeConfig.
+
+    Data is persisted as key-value rows in the ``ide_config`` table.
+    The ``config_path`` property now points to the SQLite database file.
+    """
+
+    def __init__(
+        self,
+        config_path: Path | None = None,
+        *,
+        db: DatabaseStore | None = None,
+    ) -> None:
+        if db is not None:
+            self._db = db
+            self._config_path = db.db_path
+        elif config_path is not None:
+            # config_path used to be a JSON file; now we interpret it as
+            # the database path for backwards-compatible test injection.
+            self._config_path = config_path
+            self._db = DatabaseStore(db_path=config_path)
+        else:
+            self._config_path = None
+            self._db = DatabaseStore()
+            self._config_path = self._db.db_path
 
     @property
     def config_path(self) -> Path:
-        return self._config_path
+        return self._config_path or self._db.db_path
+
+    @property
+    def database(self) -> DatabaseStore:
+        """Expose the underlying DatabaseStore for shared access."""
+        return self._db
 
     def info(self) -> ConfigStoreInfo:
         return ConfigStoreInfo(
-            path=str(self._config_path), exists=self._config_path.exists()
+            path=str(self.config_path), exists=self.config_path.exists()
         )
 
     def load(self) -> IdeConfig:
-        if not self._config_path.exists():
+        raw = self._db.load_kv_typed("ide_config", IdeConfig)
+        if not raw:
             return IdeConfig()
-        with self._config_path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        if not isinstance(data, dict):
-            return IdeConfig()
-        return IdeConfig.from_dict(data)
+        return IdeConfig.from_dict(raw)
 
     def save(self, config: IdeConfig) -> IdeConfig:
-        ensure_directory(self._config_path.parent)
-        with self._config_path.open("w", encoding="utf-8") as handle:
-            json.dump(config.to_dict(), handle, indent=2, ensure_ascii=False)
-            handle.write("\n")
+        self._db.save_kv("ide_config", config.to_dict())
         return config
 
     def update(self, **updates: object) -> IdeConfig:

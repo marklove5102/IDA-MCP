@@ -12,6 +12,9 @@ from supervisor.models import (
     InstallationActionResult,
     InstallationCheck,
     IdeConfig,
+    McpServerEntry,
+    ModelProvider,
+    SkillEntry,
 )
 
 
@@ -56,3 +59,39 @@ class SettingsService:
 
     def reinstall(self, *, on_progress=None) -> InstallationActionResult:
         return self._supervisor_client.reinstall(on_progress=on_progress)
+
+    # --- Model providers ---
+
+    def get_model_providers(self) -> list[ModelProvider]:
+        return self._supervisor_client.get_model_providers()
+
+    def add_model_provider(self, **kwargs) -> int:
+        return self._supervisor_client.add_model_provider(**kwargs)
+
+    def update_model_provider(self, provider_id: int, **updates: object) -> bool:
+        return self._supervisor_client.update_model_provider(provider_id, **updates)
+
+    def remove_model_provider(self, provider_id: int) -> bool:
+        return self._supervisor_client.remove_model_provider(provider_id)
+
+    # --- MCP servers ---
+
+    def get_mcp_servers(self) -> list[McpServerEntry]:
+        return self._supervisor_client.get_mcp_servers()
+
+    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
+        return self._supervisor_client.add_mcp_server(name, url, enabled=enabled)
+
+    def remove_mcp_server(self, server_id: int) -> bool:
+        return self._supervisor_client.remove_mcp_server(server_id)
+
+    # --- Skills ---
+
+    def get_skills(self) -> list[SkillEntry]:
+        return self._supervisor_client.get_skills()
+
+    def add_skill(self, name: str, description: str = "", *, enabled: bool = True) -> int:
+        return self._supervisor_client.add_skill(name, description, enabled=enabled)
+
+    def remove_skill(self, skill_id: int) -> bool:
+        return self._supervisor_client.remove_skill(skill_id)

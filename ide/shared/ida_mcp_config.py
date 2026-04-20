@@ -1,4 +1,8 @@
-"""Simple ida_mcp config.conf reader/writer for the IDE."""
+"""Simple ida_mcp config.conf reader/writer for the IDE.
+
+Now backed by SQLite (via DatabaseStore) while maintaining sync with the
+file-based config.conf that the IDA plugin reads at runtime.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from shared.database import DatabaseStore
 from shared.paths import ensure_directory, get_ida_mcp_resources_dir
 
 from supervisor.models import ConfigStoreInfo, IdaMcpConfig
@@ -127,13 +132,25 @@ def _parse_line(raw_line: str) -> _ParsedLine:
 
 
 class IdaMcpConfigStore:
+    """SQLite-backed store for IdaMcpConfig with config.conf sync.
+
+    Primary storage is the ``ida_mcp_config`` KV table in SQLite.
+    Every write also syncs to the config.conf file so the IDA plugin
+    can read it at runtime.
+    """
+
     def __init__(
         self,
         config_path: Path | str | None = None,
         *,
         plugin_dir: Path | str | None = None,
+        db: DatabaseStore | None = None,
     ) -> None:
         self._config_path = resolve_config_path(config_path, plugin_dir=plugin_dir)
+        if db is not None:
+            self._db = db
+        else:
+            self._db = DatabaseStore()
 
     @property
     def config_path(self) -> Path:
@@ -146,6 +163,33 @@ class IdaMcpConfigStore:
         )
 
     def load(self) -> IdaMcpConfig:
+        raw = self._db.load_kv_typed("ida_mcp_config", IdaMcpConfig)
+        if raw:
+            return IdaMcpConfig(**raw, config_path=str(self._config_path))
+
+        # First-time: try to load from config.conf and seed SQLite.
+        config = self._load_from_conf()
+        self._db.save_kv("ida_mcp_config", config.to_dict())
+        return config
+
+    def save(self, config: IdaMcpConfig) -> IdaMcpConfig:
+        return self.update(**config.to_dict())
+
+    def update(self, **updates: object) -> IdaMcpConfig:
+        pending = {key: value for key, value in updates.items() if key in _KNOWN_KEYS}
+        self._db.save_kv("ida_mcp_config", pending)
+
+        # Sync to config.conf for the IDA plugin.
+        self._sync_to_conf(pending)
+
+        return self.load()
+
+    # ------------------------------------------------------------------
+    # config.conf sync
+    # ------------------------------------------------------------------
+
+    def _load_from_conf(self) -> IdaMcpConfig:
+        """Load from config.conf file (legacy fallback)."""
         values = IdaMcpConfig().to_dict()
         if not self._config_path.exists():
             return IdaMcpConfig(**values, config_path=str(self._config_path))
@@ -162,25 +206,22 @@ class IdaMcpConfigStore:
         values.update(active_values)
         return IdaMcpConfig(**values, config_path=str(self._config_path))
 
-    def save(self, config: IdaMcpConfig) -> IdaMcpConfig:
-        return self.update(**config.to_dict())
-
-    def update(self, **updates: object) -> IdaMcpConfig:
-        pending = {key: value for key, value in updates.items() if key in _KNOWN_KEYS}
+    def _sync_to_conf(self, updates: dict[str, Any]) -> None:
+        """Write updates to the config.conf file, preserving comments."""
         parsed_lines = self._read_parsed_lines() if self._config_path.exists() else []
         applied: set[str] = set()
         output: list[str] = []
 
         for line in parsed_lines:
-            if line.is_assignment and line.key in pending and line.key not in applied:
+            if line.is_assignment and line.key in updates and line.key not in applied:
                 output.append(
-                    self._render_assignment(line.key, pending[line.key], line)
+                    self._render_assignment(line.key, updates[line.key], line)
                 )
                 applied.add(line.key)
                 continue
             output.append(line.raw)
 
-        for key, value in pending.items():
+        for key, value in updates.items():
             if key in applied:
                 continue
             output.append(self._render_assignment(key, value))
@@ -189,7 +230,6 @@ class IdaMcpConfigStore:
         self._config_path.write_text(
             "\n".join(output).rstrip() + "\n", encoding="utf-8"
         )
-        return self.load()
 
     def _read_parsed_lines(self) -> list[_ParsedLine]:
         text = self._config_path.read_text(encoding="utf-8")

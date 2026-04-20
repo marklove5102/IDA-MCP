@@ -11,6 +11,9 @@ from supervisor.models import (
     InstallationActionResult,
     InstallationCheck,
     IdeConfig,
+    McpServerEntry,
+    ModelProvider,
+    SkillEntry,
     SupervisorSnapshot,
 )
 
@@ -73,3 +76,65 @@ class SupervisorClient:
 
     def reinstall(self, *, on_progress=None) -> InstallationActionResult:
         return self._manager.reinstall(on_progress=on_progress)
+
+    # --- Model providers ---
+
+    def get_model_providers(self) -> list[ModelProvider]:
+        return self._manager.get_model_providers()
+
+    def add_model_provider(
+        self,
+        name: str = "",
+        base_url: str = "",
+        api_key: str = "",
+        api_mode: str = "openai_compatible",
+        model_name: str = "",
+        top_p: float = 1.0,
+        temperature: float = 0.7,
+        *,
+        enabled: bool = True,
+    ) -> int:
+        return self._manager.add_model_provider(
+            name=name,
+            base_url=base_url,
+            api_key=api_key,
+            api_mode=api_mode,
+            model_name=model_name,
+            top_p=top_p,
+            temperature=temperature,
+            enabled=enabled,
+        )
+
+    def update_model_provider(self, provider_id: int, **updates: object) -> bool:
+        return self._manager.update_model_provider(provider_id, **updates)
+
+    def remove_model_provider(self, provider_id: int) -> bool:
+        return self._manager.remove_model_provider(provider_id)
+
+    # --- MCP servers ---
+
+    def get_mcp_servers(self) -> list[McpServerEntry]:
+        return self._manager.get_mcp_servers()
+
+    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
+        return self._manager.add_mcp_server(name, url, enabled=enabled)
+
+    def update_mcp_server(self, server_id: int, **updates: object) -> bool:
+        return self._manager.update_mcp_server(server_id, **updates)
+
+    def remove_mcp_server(self, server_id: int) -> bool:
+        return self._manager.remove_mcp_server(server_id)
+
+    # --- Skills ---
+
+    def get_skills(self) -> list[SkillEntry]:
+        return self._manager.get_skills()
+
+    def add_skill(self, name: str, description: str = "", *, enabled: bool = True) -> int:
+        return self._manager.add_skill(name, description, enabled=enabled)
+
+    def update_skill(self, skill_id: int, **updates: object) -> bool:
+        return self._manager.update_skill(skill_id, **updates)
+
+    def remove_skill(self, skill_id: int) -> bool:
+        return self._manager.remove_skill(skill_id)
