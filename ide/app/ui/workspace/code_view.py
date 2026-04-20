@@ -10,7 +10,6 @@ from pygments.lexers import get_lexer_for_filename, ClassNotFound, TextLexer
 from PySide6.QtCore import Qt
 from PySide6.QtGui import (
     QColor,
-    QFont,
     QSyntaxHighlighter,
     QTextCharFormat,
     QTextCursor,
@@ -27,31 +26,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.theme import SYNTAX_TOKENS, markdown_css, mono_font
+
 
 _MARKDOWN_EXTS = {".md", ".markdown", ".mdown", ".mkd"}
-_MONO_FONT = QFont("Cascadia Code", 10)
 
 
 # ---------------------------------------------------------------------------
 # Real-time syntax highlighter using Pygments
 # ---------------------------------------------------------------------------
-
-# Map Pygments token *suffix* patterns to colours.
-# We match against the stringified token like "Token.Keyword.Reserved".
-_TOKEN_RULES: list[tuple[str, str, bool]] = [
-    # (suffix, colour, bold)
-    ("Token.Comment", "#008000", False),
-    ("Token.Keyword", "#0000FF", True),
-    ("Token.Literal.String", "#A31515", False),
-    ("Token.Literal.Number", "#098658", False),
-    ("Token.Name.Builtin", "#267F99", False),
-    ("Token.Name.Function", "#795E26", False),
-    ("Token.Name.Class", "#267F99", True),
-    ("Token.Name.Decorator", "#795E26", False),
-    ("Token.Name.Attribute", "#E50000", False),
-    ("Token.Operator", "#000000", False),
-    ("Token.Name.Variable", "#001080", False),
-]
 
 
 class _PygmentsHighlighter(QSyntaxHighlighter):
@@ -72,7 +55,7 @@ class _PygmentsHighlighter(QSyntaxHighlighter):
             if tokentype in (Token.Text, Token.Text.Whitespace, Token):
                 continue
             token_str = str(tokentype)
-            for suffix, color, bold in _TOKEN_RULES:
+            for suffix, (color, bold) in SYNTAX_TOKENS.items():
                 if token_str.startswith(suffix):
                     fmt = QTextCharFormat()
                     fmt.setForeground(QColor(color))
@@ -98,18 +81,7 @@ def _render_markdown(text: str) -> str:
 
 
 _MD_HTML_TEMPLATE = """<html><head><style>
-body {{ font-family: 'Segoe UI', sans-serif; font-size: 14px; margin: 16px; }}
-pre, code {{ font-family: 'Cascadia Code', 'Consolas', monospace; }}
-pre {{ font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }}
-code {{ background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }}
-pre code {{ background: none; padding: 0; }}
-h1, h2, h3, h4, h5, h6 {{ margin-top: 20px; margin-bottom: 8px; }}
-table {{ border-collapse: collapse; width: 100%; margin: 8px 0; }}
-th, td {{ border: 1px solid #ddd; padding: 6px 12px; text-align: left; }}
-th {{ background: #f5f5f5; font-weight: 600; }}
-blockquote {{ border-left: 3px solid #ddd; margin: 8px 0; padding: 4px 12px; color: #555; }}
-a {{ color: #3b82f6; }}
-img {{ max-width: 100%; }}
+{css}
 </style></head><body>{body}</body></html>"""
 
 
@@ -165,7 +137,7 @@ class CodeViewWidget(QWidget):
         # Page 0: plain-text editor (always editable)
         self._editor = QTextEdit()
         self._editor.setObjectName("codeEditor")
-        self._editor.setFont(_MONO_FONT)
+        self._editor.setFont(mono_font())
         self._editor.setLineWrapMode(QTextEdit.NoWrap)
         self._editor.setPlaceholderText("Open a file from the directory tree...")
 
@@ -256,7 +228,7 @@ class CodeViewWidget(QWidget):
 
     def _render_preview(self) -> None:
         html = _render_markdown(self._editor.toPlainText())
-        self._preview.setHtml(_MD_HTML_TEMPLATE.format(body=html))
+        self._preview.setHtml(_MD_HTML_TEMPLATE.format(css=markdown_css(), body=html))
 
     # ------------------------------------------------------------------
     # Save

@@ -162,9 +162,9 @@ class MainWindow(QMainWindow):
         return bar
 
     def _sidebar_icon_color(self) -> str:
-        from app.ui.theme import ThemeMode
+        from app.ui.theme import Theme
 
-        return "#9ca3af" if self._current_theme_mode() == ThemeMode.LIGHT else "#6b7280"
+        return Theme.light().sidebar_icon_color
 
     def _current_theme_mode(self):
         from app.ui.theme import ThemeMode

@@ -11,10 +11,69 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from PySide6.QtGui import QFont
+
 
 class ThemeMode(Enum):
     LIGHT = auto()
     DARK = auto()
+
+
+# -----------------------------------------------------------------------
+# Design tokens: named constants for UI metrics and fonts
+# -----------------------------------------------------------------------
+
+# Fonts
+FONT_FAMILY = '"Segoe UI", "SF Pro Text", "Inter", sans-serif'
+MONO_FONT_FAMILY = '"Cascadia Code", "Consolas", monospace'
+MONO_FONT_SIZE = 10
+
+
+def mono_font() -> QFont:
+    """Return the application-wide monospace font."""
+    return QFont("Cascadia Code", MONO_FONT_SIZE)
+
+
+# -----------------------------------------------------------------------
+# Syntax highlighting tokens (light theme; dark theme can extend later)
+# -----------------------------------------------------------------------
+
+SYNTAX_TOKENS: dict[str, tuple[str, bool]] = {
+    # token suffix → (hex colour, bold)
+    "Token.Comment":       ("#008000", False),
+    "Token.Keyword":       ("#0000FF", True),
+    "Token.Literal.String": ("#A31515", False),
+    "Token.Literal.Number": ("#098658", False),
+    "Token.Name.Builtin":  ("#267F99", False),
+    "Token.Name.Function": ("#795E26", False),
+    "Token.Name.Class":    ("#267F99", True),
+    "Token.Name.Decorator": ("#795E26", False),
+    "Token.Name.Attribute": ("#E50000", False),
+    "Token.Operator":      ("#000000", False),
+    "Token.Name.Variable": ("#001080", False),
+}
+
+
+def markdown_css(accent: str = "#3b82f6") -> str:
+    """Return the CSS string used inside the markdown preview HTML template.
+
+    Colours are parameterised so the caller can pass a theme-appropriate
+    accent colour (currently only the link colour varies).
+    """
+    return f"""\
+body {{ font-family: {FONT_FAMILY}; font-size: 14px; margin: 16px; }}
+pre, code {{ font-family: {MONO_FONT_FAMILY}; }}
+pre {{ font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }}
+code {{ background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }}
+pre code {{ background: none; padding: 0; }}
+h1, h2, h3, h4, h5, h6 {{ margin-top: 20px; margin-bottom: 8px; }}
+table {{ border-collapse: collapse; width: 100%; margin: 8px 0; }}
+th, td {{ border: 1px solid #ddd; padding: 6px 12px; text-align: left; }}
+th {{ background: #f5f5f5; font-weight: 600; }}
+blockquote {{ border-left: 3px solid #ddd; margin: 8px 0; padding: 4px 12px; color: #555; }}
+a {{ color: {accent}; }}
+img {{ max-width: 100%; }}\
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +195,21 @@ class Theme:
     @property
     def accent(self) -> str:
         return self._palette.accent
+
+    @property
+    def sidebar_icon_color(self) -> str:
+        """Colour used for inactive sidebar icons."""
+        return self._palette.text_secondary
+
+    @property
+    def error_color(self) -> str:
+        """Colour used for inline validation errors."""
+        return self._palette.status_error
+
+    @property
+    def error_label_qss(self) -> str:
+        """Ready-made QSS for validation error labels."""
+        return f"color: {self._palette.status_error}; font-size: 12px;"
 
     # ------------------------------------------------------------------ #
     # Stylesheet generation
@@ -296,6 +370,10 @@ class Theme:
             color: {c.text_secondary};
             font-size: 8pt;
             font-style: italic;
+        }}
+        QLabel#settingsErrorLabel {{
+            color: {c.status_error};
+            font-size: 12px;
         }}
 
         /* ---- Inputs ---- */
@@ -608,6 +686,44 @@ class Theme:
         /* ---- MessageBox ---- */
         QMessageBox {{
             background: {c.panel_bg};
+        }}
+
+        /* ---- Model providers table ---- */
+        QTableWidget#modelProvidersTable {{
+            background: {c.input_bg};
+            alternate-background-color: {c.sidebar_bg};
+            border: 1px solid {c.border};
+            selection-background-color: {c.accent_subtle};
+            selection-color: {c.text_primary};
+        }}
+
+        /* ---- Danger button (flat, red-tinted) ---- */
+        QPushButton#dangerButton {{
+            background: transparent;
+            color: {c.status_error};
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 9pt;
+        }}
+        QPushButton#dangerButton:hover {{
+            background: #fef2f2;
+            border: 1px solid {c.status_error};
+        }}
+
+        /* ---- Model provider dialog ---- */
+        QDialog#modelProviderDialog {{
+            background: {c.panel_bg};
+        }}
+        QLabel#dialogSectionTitle {{
+            color: {c.text_primary};
+            font-size: 10pt;
+            font-weight: 700;
+            padding-top: 8px;
+        }}
+        QFrame#dialogSeparator {{
+            background: {c.border_light};
+            max-height: 1px;
         }}
         """
 

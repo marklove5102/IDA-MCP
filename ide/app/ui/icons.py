@@ -87,9 +87,15 @@ _SIDEBAR_ICON_FACTORIES = {
 
 
 def make_sidebar_icons(
-    color: str | QColor = "#9ca3af", size: int = 22
+    color: str | QColor = "", size: int = 22
 ) -> dict[str, QIcon]:
-    """Create all sidebar icons in the given color."""
+    """Create all sidebar icons in the given color.
+
+    If *color* is empty, falls back to the theme sidebar icon color.
+    """
+    if not color:
+        from app.ui.theme import Theme
+        color = Theme.light().sidebar_icon_color
     qcolor = QColor(color)
     return {
         key: _icon_from_path(factory(), qcolor, size)

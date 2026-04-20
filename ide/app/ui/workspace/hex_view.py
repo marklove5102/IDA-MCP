@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -14,6 +14,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+from app.ui.theme import mono_font
 
 
 def _hex_dump(data: bytes, bytes_per_line: int = 16) -> str:
@@ -112,7 +115,7 @@ class HexViewWidget(QWidget):
         self._content = QTextEdit()
         self._content.setObjectName("hexContent")
         self._content.setReadOnly(True)
-        self._content.setFont(QFont("Cascadia Code", 10))
+        self._content.setFont(mono_font())
         self._content.setLineWrapMode(QTextEdit.NoWrap)
         self._content.setPlaceholderText(
             "Open a binary file from the directory tree to view its hex content."

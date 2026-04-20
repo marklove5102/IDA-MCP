@@ -92,34 +92,43 @@ class ModelProviderDialog(QDialog):
             if self._provider is None
             else self._t("settings.model.dialog.edit")
         )
+        self.setObjectName("modelProviderDialog")
         self.setMinimumWidth(480)
 
-        form = QFormLayout(self)
-        form.setSpacing(10)
-        form.setContentsMargins(20, 20, 20, 20)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(6)
+        layout.setContentsMargins(24, 24, 24, 24)
 
-        # Name
+        # --- Section: Identity ---
+        layout.addWidget(self._section_label(self._t("settings.field.model_name")))
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText("My GPT-4o")
-        form.addRow(self._t("settings.field.model_name"), self._name_edit)
+        layout.addWidget(self._name_edit)
 
-        # Base URL
+        layout.addSpacing(2)
+        layout.addWidget(self._field_label(self._t("settings.field.model_id")))
+        self._model_id_edit = QLineEdit()
+        self._model_id_edit.setPlaceholderText("gpt-4o")
+        layout.addWidget(self._model_id_edit)
+
+        layout.addWidget(self._separator())
+        layout.addSpacing(4)
+
+        # --- Section: Connection ---
+        layout.addWidget(self._section_label(self._t("settings.field.model_base_url")))
         self._base_url_edit = QLineEdit()
         self._base_url_edit.setPlaceholderText("https://api.openai.com/v1")
-        form.addRow(self._t("settings.field.model_base_url"), self._base_url_edit)
+        layout.addWidget(self._base_url_edit)
 
-        # API Key
+        layout.addSpacing(2)
+        layout.addWidget(self._field_label(self._t("settings.field.model_api_key")))
         self._api_key_edit = QLineEdit()
         self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._api_key_edit.setPlaceholderText("sk-...")
-        form.addRow(self._t("settings.field.model_api_key"), self._api_key_edit)
+        layout.addWidget(self._api_key_edit)
 
-        # Model ID
-        self._model_id_edit = QLineEdit()
-        self._model_id_edit.setPlaceholderText("gpt-4o")
-        form.addRow(self._t("settings.field.model_id"), self._model_id_edit)
-
-        # API Mode
+        layout.addSpacing(2)
+        layout.addWidget(self._field_label(self._t("settings.field.model_api_mode")))
         self._api_mode_combo = NoWheelComboBox()
         self._api_mode_items = [
             ("openai_responses", self._t("settings.model.api_mode.openai_responses")),
@@ -130,28 +139,46 @@ class ModelProviderDialog(QDialog):
         for value, label in self._api_mode_items:
             self._api_mode_combo.addItem(label, value)
         self._api_mode_combo.setCurrentIndex(1)  # default: openai_compatible
-        form.addRow(self._t("settings.field.model_api_mode"), self._api_mode_combo)
+        layout.addWidget(self._api_mode_combo)
 
-        # Top-P
+        layout.addWidget(self._separator())
+        layout.addSpacing(4)
+
+        # --- Section: Parameters ---
+        layout.addWidget(self._section_label(self._t("settings.field.model_top_p")))
         self._top_p_spin = NoWheelDoubleSpinBox()
         self._top_p_spin.setRange(0.0, 1.0)
         self._top_p_spin.setSingleStep(0.05)
         self._top_p_spin.setDecimals(2)
         self._top_p_spin.setValue(1.0)
-        form.addRow(self._t("settings.field.model_top_p"), self._top_p_spin)
+        layout.addWidget(self._top_p_spin)
 
-        # Temperature
+        layout.addSpacing(2)
+        layout.addWidget(self._field_label(self._t("settings.field.model_temperature")))
         self._temp_spin = NoWheelDoubleSpinBox()
         self._temp_spin.setRange(0.0, 2.0)
         self._temp_spin.setSingleStep(0.1)
         self._temp_spin.setDecimals(1)
         self._temp_spin.setValue(0.7)
-        form.addRow(self._t("settings.field.model_temperature"), self._temp_spin)
+        layout.addWidget(self._temp_spin)
 
-        # Enabled
+        layout.addWidget(self._separator())
+        layout.addSpacing(4)
+
+        # --- Section: State ---
+        layout.addWidget(self._field_label(self._t("settings.skills.enabled")))
         self._enabled_check = QCheckBox()
         self._enabled_check.setChecked(True)
-        form.addRow(self._t("settings.skills.enabled"), self._enabled_check)
+        layout.addWidget(self._enabled_check)
+
+        # Validation error label (hidden until needed)
+        self._error_label = QLabel("")
+        self._error_label.setObjectName("settingsErrorLabel")
+        self._error_label.setWordWrap(True)
+        self._error_label.hide()
+        layout.addWidget(self._error_label)
+
+        layout.addSpacing(8)
 
         # Buttons
         self._buttons = QDialogButtonBox(
@@ -160,15 +187,7 @@ class ModelProviderDialog(QDialog):
         )
         self._buttons.accepted.connect(self._validate_and_accept)
         self._buttons.rejected.connect(self.reject)
-        form.addRow(self._buttons)
-
-        # Validation error label (hidden until needed)
-        self._error_label = QLabel("")
-        self._error_label.setObjectName("settingsErrorLabel")
-        self._error_label.setStyleSheet("color: #ef4444; font-size: 12px;")
-        self._error_label.setWordWrap(True)
-        self._error_label.hide()
-        form.addRow(self._error_label)
+        layout.addWidget(self._buttons)
 
         # Pre-fill if editing
         if self._provider is not None:
@@ -197,6 +216,23 @@ class ModelProviderDialog(QDialog):
             "temperature": self._temp_spin.value(),
             "enabled": self._enabled_check.isChecked(),
         }
+
+    def _section_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("dialogSectionTitle")
+        return label
+
+    def _field_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("settingsFieldLabel")
+        return label
+
+    def _separator(self) -> QFrame:
+        line = QFrame()
+        line.setObjectName("dialogSeparator")
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFixedHeight(1)
+        return line
 
     def _validate_and_accept(self) -> None:
         """Validate required fields before accepting the dialog."""
@@ -450,9 +486,12 @@ class _InstallController:
         worker.start()
 
     def _on_check_finished(self, result: object, worker: _CheckWorker) -> None:
-        if self._check_worker is worker:
+        if self._check_worker is not worker:
+            # Stale worker — discard the result to avoid overwriting newer state.
             worker.deleteLater()
-            self._check_worker = None
+            return
+        worker.deleteLater()
+        self._check_worker = None
         if result is not None:
             self._on_check_result(result)
 
@@ -577,9 +616,13 @@ class SettingsPage(QWidget):
 
         # --- Model providers widgets ---
         self._model_providers_table = QTableWidget(0, 6)
+        self._model_providers_table.setObjectName("modelProvidersTable")
         self._model_providers_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._model_providers_table.setSelectionMode(QTableWidget.NoSelection)
         self._model_providers_table.verticalHeader().setVisible(False)
+        self._model_providers_table.setAlternatingRowColors(True)
+        self._model_providers_table.setShowGrid(False)
+        self._model_providers_table.verticalHeader().setDefaultSectionSize(38)
         self._model_providers_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeToContents
         )
@@ -1017,6 +1060,8 @@ class SettingsPage(QWidget):
         self._refresh_model_providers_table()
 
     def _refresh_model_providers_table(self) -> None:
+        from PySide6.QtGui import QColor
+
         api_mode_labels = {
             "openai_responses": self._t("settings.model.api_mode.openai_responses"),
             "openai_compatible": self._t("settings.model.api_mode.openai_compatible"),
@@ -1024,12 +1069,20 @@ class SettingsPage(QWidget):
             "gemini": self._t("settings.model.api_mode.gemini"),
         }
 
+        enabled_text = self._t("settings.bool.yes")
+        disabled_text = self._t("settings.bool.no")
+
         providers = self._settings_service.get_model_providers()
         self._model_providers_table.setRowCount(len(providers))
         for row_index, provider in enumerate(providers):
+            # Name (bold)
             name_item = QTableWidgetItem(provider.name or "")
             name_item.setData(Qt.ItemDataRole.UserRole, provider.id)
+            name_font = name_item.font()
+            name_font.setBold(True)
+            name_item.setFont(name_font)
             self._model_providers_table.setItem(row_index, 0, name_item)
+
             self._model_providers_table.setItem(
                 row_index, 1, QTableWidgetItem(provider.base_url or "")
             )
@@ -1040,18 +1093,25 @@ class SettingsPage(QWidget):
                 row_index, 3,
                 QTableWidgetItem(api_mode_labels.get(provider.api_mode, provider.api_mode)),
             )
-            enabled_item = QTableWidgetItem(
-                self._t("settings.bool.yes") if provider.enabled else self._t("settings.bool.no")
+
+            # Enabled indicator (green ● or gray ●)
+            is_enabled = bool(provider.enabled)
+            dot = "●  " + (enabled_text if is_enabled else disabled_text)
+            enabled_item = QTableWidgetItem(dot)
+            enabled_item.setForeground(
+                QColor("#059669") if is_enabled else QColor("#9ca3af")
             )
             self._model_providers_table.setItem(row_index, 4, enabled_item)
 
-            # Per-row delete button
+            # Per-row delete button (flat danger style)
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
             btn_layout.setContentsMargins(4, 2, 4, 2)
             btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             del_btn = QPushButton(self._t("settings.model.remove"))
+            del_btn.setObjectName("dangerButton")
             del_btn.setFixedHeight(26)
+            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             del_btn.clicked.connect(
                 lambda checked, pid=provider.id: self._delete_model_provider(pid)
             )
@@ -1160,6 +1220,15 @@ class SettingsPage(QWidget):
     # ------------------------------------------------------------------
     # Save / check / install
     # ------------------------------------------------------------------
+
+    def cleanup(self) -> None:
+        """Stop background workers. Call before the page is destroyed."""
+        self._install_ctrl._cleanup_check_worker()
+        self._install_ctrl._cleanup_install_worker()
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        self.cleanup()
+        super().closeEvent(event)
 
     def save(self) -> None:
         self._save_settings(show_message=True)
