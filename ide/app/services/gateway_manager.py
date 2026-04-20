@@ -93,11 +93,26 @@ class GatewayManager(QObject):
 
     def _start_worker(self, action: str) -> None:
         self.busy_changed.emit(True)
+        # Clean up any previous worker before starting a new one.
+        self._cleanup_worker()
         worker = _GatewayWorker(action, self._client, parent=self)
         self._worker = worker
         worker.progress.connect(self._on_log)
-        worker.finished.connect(self._on_finished)
+        # Use a closure to capture the *identity* of this specific worker,
+        # so a stale finished signal cannot delete a newer worker.
+        worker.finished.connect(lambda snap, w=worker: self._on_finished(snap, w))
         worker.start()
+
+    def _cleanup_worker(self) -> None:
+        """Wait for the previous worker to finish and release it."""
+        worker = self._worker
+        if worker is None:
+            return
+        if worker.isRunning():
+            worker.quit()
+            worker.wait(3000)
+        worker.deleteLater()
+        self._worker = None
 
     def _on_log(self, message: str) -> None:
         from datetime import datetime
@@ -105,10 +120,10 @@ class GatewayManager(QObject):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_message.emit(f"[{timestamp}] {message}")
 
-    def _on_finished(self, snapshot: object) -> None:
-        self.busy_changed.emit(False)
+    def _on_finished(self, snapshot: object, worker: _GatewayWorker) -> None:
         from supervisor.models import SupervisorSnapshot
 
+        # Always update snapshot regardless of whether this worker is current.
         if isinstance(snapshot, SupervisorSnapshot):
             self._snapshot = snapshot
             self.snapshot_ready.emit(snapshot)
@@ -118,3 +133,9 @@ class GatewayManager(QObject):
                     self._auto_refresh_timer.start(10000)
             else:
                 self._auto_refresh_timer.stop()
+
+        # Only tear down busy state for the current worker.
+        if self._worker is worker:
+            worker.deleteLater()
+            self._worker = None
+            self.busy_changed.emit(False)

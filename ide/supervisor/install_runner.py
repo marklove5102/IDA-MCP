@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from shared.paths import get_ida_mcp_resources_dir
+from shared.platform import display_path as _display_path
 
 from .models import InstallationActionResult, InstallationCheck
 
@@ -217,8 +218,8 @@ def run_install(
     pip_output = ""
     _log(f"[1/{total_steps}] Installing Python dependencies...")
     if requirements_path:
-        _log(f"  Python: {python_executable}")
-        _log(f"  Requirements: {requirements_path}")
+        _log(f"  Python: {_display_path(python_executable)}")
+        _log(f"  Requirements: {_display_path(requirements_path)}")
         pip_ok, pip_output = _pip_install_streaming(
             str(python_path),
             str(requirements_path),
@@ -236,8 +237,8 @@ def run_install(
 
     # --- Step 2: Copy plugin files ---
     _log(f"[2/{total_steps}] Copying plugin files...")
-    _log(f"  Source: {resources_dir}")
-    _log(f"  Target: {plugins_dir}")
+    _log(f"  Source: {_display_path(resources_dir)}")
+    _log(f"  Target: {_display_path(plugins_dir)}")
     copy_ok, copy_error = _copy_plugin_files(resources_dir, plugins_dir)
     if not copy_ok:
         warnings.append(f"file copy failed: {copy_error}")
@@ -261,7 +262,7 @@ def run_install(
             warnings.append(f"config write failed: {write_error}")
             _log(f"[3/{total_steps}] FAILED — {write_error}")
         else:
-            _log(f"  Config: {config_path_str}")
+            _log(f"  Config: {_display_path(config_path_str)}")
             _log(f"[3/{total_steps}] Configuration written successfully")
 
     # --- Summary ---

@@ -17,6 +17,8 @@ import urllib.error
 from pathlib import Path
 from typing import Any, Callable
 
+from shared.platform import display_path as _display_path
+
 from .config_store import IdeConfigStore
 from .models import (
     GatewayState,
@@ -284,7 +286,7 @@ class GatewayController:
 
         plugin_dir = Path(config.plugin_dir)
         if not plugin_dir.exists():
-            msg = f"plugin_dir ({plugin_dir}) does not exist."
+            msg = f"plugin_dir ({_display_path(plugin_dir)}) does not exist."
             self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
@@ -293,7 +295,7 @@ class GatewayController:
         # Verify command.py exists in the installed plugin
         command_script = plugin_dir / "ida_mcp" / "command.py"
         if not command_script.exists():
-            msg = f"command.py not found at {command_script}. Run install first."
+            msg = f"command.py not found at {_display_path(command_script)}. Run install first."
             self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
@@ -305,7 +307,7 @@ class GatewayController:
             return _error_status(msg)
         python_path = Path(python_path_raw)
         if not python_path.exists():
-            msg = f"ida_python ({python_path}) does not exist."
+            msg = f"ida_python ({_display_path(python_path)}) does not exist."
             self._log_msg(f"ERROR: {msg}")
             return _error_status(msg)
 
@@ -315,7 +317,7 @@ class GatewayController:
         # Use command.py which handles gateway start (including spawning
         # registry_server as a detached process) and returns JSON on stdout.
         cmd = [str(python_path), str(command_script), "gateway", "start", "--json"]
-        self._log_msg(f"$ {' '.join(cmd)}")
+        self._log_msg(f"$ {' '.join(_display_path(c) for c in cmd)}")
 
         # Use temp files instead of pipes for stdout/stderr.  On Windows,
         # ``subprocess.run(capture_output=True)`` creates anonymous pipes

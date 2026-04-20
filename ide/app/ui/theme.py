@@ -185,7 +185,7 @@ class Theme:
         }}
         QLabel#panelTitle {{
             color: {c.text_primary};
-            font-size: 13px;
+            font-size: 10pt;
             font-weight: 600;
             letter-spacing: 0.02em;
             text-transform: uppercase;
@@ -211,17 +211,17 @@ class Theme:
         QLabel#hexPathLabel,
         QLabel#imagePathLabel {{
             color: {c.text_primary};
-            font-size: 13px;
+            font-size: 10pt;
             font-weight: 600;
         }}
         QLabel#hexSizeLabel,
         QLabel#imageSizeLabel {{
             color: {c.text_secondary};
-            font-size: 12px;
+            font-size: 9pt;
         }}
         QLabel#hexReadonlyLabel {{
             color: {c.text_secondary};
-            font-size: 11px;
+            font-size: 8pt;
             font-weight: 700;
             letter-spacing: 0.06em;
             padding: 0 2px;
@@ -245,7 +245,7 @@ class Theme:
         }}
         QLabel#imageLabel {{
             color: {c.text_secondary};
-            font-size: 13px;
+            font-size: 10pt;
             padding: 18px;
         }}
         QPushButton#openFolderButton,
@@ -259,7 +259,7 @@ class Theme:
         /* ---- Settings page typography ---- */
         QLabel#settingsTitle {{
             color: {c.text_primary};
-            font-size: 20px;
+            font-size: 15pt;
             font-weight: 700;
             letter-spacing: -0.01em;
             padding-bottom: 4px;
@@ -273,28 +273,28 @@ class Theme:
         }}
         QLabel#settingsGroupTitle {{
             color: {c.text_primary};
-            font-size: 13px;
+            font-size: 10pt;
             font-weight: 700;
             letter-spacing: 0.02em;
             text-transform: uppercase;
         }}
         QLabel#settingsGroupDescription {{
             color: {c.text_secondary};
-            font-size: 12px;
+            font-size: 9pt;
             line-height: 1.4;
         }}
         QLabel#settingsFieldLabel {{
             color: {c.text_primary};
             font-weight: 600;
-            font-size: 12px;
+            font-size: 9pt;
         }}
         QLabel#settingsFieldDescription {{
             color: {c.text_secondary};
-            font-size: 11px;
+            font-size: 8pt;
         }}
         QLabel#settingsHint {{
             color: {c.text_secondary};
-            font-size: 11px;
+            font-size: 8pt;
             font-style: italic;
         }}
 
@@ -307,7 +307,7 @@ class Theme:
             padding: 6px 8px;
             selection-background-color: {c.accent};
             selection-color: {c.accent_text};
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{
             border: 2px solid {c.accent};
@@ -340,29 +340,29 @@ class Theme:
         }}
         QLabel#statusCardTitle {{
             color: {c.text_primary};
-            font-size: 13px;
+            font-size: 10pt;
             font-weight: 700;
             letter-spacing: 0.01em;
         }}
         QLabel#statusState[state="ok"] {{
             color: {c.status_ok};
             font-weight: 700;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QLabel#statusState[state="warning"] {{
             color: {c.status_warning};
             font-weight: 700;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QLabel#statusState[state="error"] {{
             color: {c.status_error};
             font-weight: 700;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QLabel#statusState[state="unknown"] {{
             color: {c.status_unknown};
             font-weight: 600;
-            font-size: 13px;
+            font-size: 10pt;
         }}
 
         /* ---- Table header ---- */
@@ -373,7 +373,7 @@ class Theme:
             border-bottom: 1px solid {c.border};
             padding: 8px 6px;
             font-weight: 600;
-            font-size: 11px;
+            font-size: 8pt;
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }}
@@ -386,7 +386,7 @@ class Theme:
             border-radius: 0;
             padding: 8px 16px;
             font-weight: 500;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QPushButton:hover {{
             background: {c.hover_bg};
@@ -421,7 +421,7 @@ class Theme:
             border: 1px solid transparent;
             border-radius: 0;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 9pt;
             padding: 6px 10px;
         }}
         QToolButton:hover {{
@@ -473,7 +473,7 @@ class Theme:
             border-radius: 0;
             margin: 2px 4px;
             font-weight: 500;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QListWidget#settingsCategoryList::item:selected {{
             background: {c.accent};
@@ -488,7 +488,7 @@ class Theme:
             background: {c.sidebar_bg};
             color: {c.text_secondary};
             border-top: 1px solid {c.border};
-            font-size: 12px;
+            font-size: 9pt;
             padding: 2px 8px;
         }}
 
@@ -505,7 +505,7 @@ class Theme:
         /* ---- Checkbox ---- */
         QCheckBox {{
             color: {c.text_primary};
-            font-size: 13px;
+            font-size: 10pt;
             spacing: 8px;
         }}
         QCheckBox::indicator {{
@@ -584,7 +584,7 @@ class Theme:
             border-bottom: 2px solid transparent;
             padding: 8px 16px;
             font-weight: 500;
-            font-size: 13px;
+            font-size: 10pt;
         }}
         QTabBar::tab:selected {{
             color: {c.accent};
@@ -602,7 +602,7 @@ class Theme:
             border: 1px solid {c.border};
             border-radius: 0;
             padding: 6px 10px;
-            font-size: 12px;
+            font-size: 9pt;
         }}
 
         /* ---- MessageBox ---- */

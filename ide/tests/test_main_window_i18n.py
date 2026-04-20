@@ -121,8 +121,10 @@ def test_main_window_retranslates_core_shell_labels(monkeypatch) -> None:
     client = _StubSupervisorClient(language="zh")
     window = MainWindow(client)
 
-    # Drive the UI through the gateway manager seam instead of calling the slot directly.
-    window._gateway._on_finished(client.get_snapshot())
+    # Inject a snapshot through the public signal so the UI updates
+    # without coupling to the manager's internal worker lifecycle.
+    window._gateway._snapshot = client.get_snapshot()
+    window._gateway.snapshot_ready.emit(client.get_snapshot())
 
     assert window._activity_items["chat"].toolTip() == "聊天"
     assert window._status_buttons["toggle_gateway"].text() == "启动 Gateway"

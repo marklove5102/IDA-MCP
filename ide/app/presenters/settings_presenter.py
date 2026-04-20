@@ -6,6 +6,7 @@ from dataclasses import dataclass, fields as dc_fields
 from typing import Any, Callable
 
 from app.services.settings_service import SettingsSnapshot
+from shared.platform import display_path as _display_path
 from supervisor.models import (
     DEFAULT_HTTP_HOST,
     DEFAULT_IDA_HOST,
@@ -83,7 +84,11 @@ def snapshot_to_form_state(snapshot: SettingsSnapshot) -> SettingsFormState:
         if src in ida_mcp_dict:
             ida_mcp_dict[dst] = ida_mcp_dict.pop(src)
 
-    # Coerce None strings to "" for UI display
+    # Coerce None strings to "" for UI display.
+    # NOTE: Do *not* apply display_path() here.  These values are
+    # round-tripped back to config on save (form_state_to_updates).
+    # Normalizing separators would silently corrupt WSL/POSIX paths
+    # (e.g. /mnt/e/… → \mnt\e\…) on Windows.
     for key in ("ida_path", "ida_python", "open_in_ida_bundle_dir"):
         if ida_mcp_dict.get(key) is None:
             ida_mcp_dict[key] = ""
@@ -151,14 +156,14 @@ def build_check_message(
         f"Environment: {report.environment.state.value} - {report.environment.summary}",
         "",
         f"{translate('settings.install.status')}:",
-        f"- {translate('settings.install.plugin_dir')}: {installation.plugin_dir or '(not found)'}",
-        f"- {translate('settings.install.config')}: {installation.config_path or '(not resolved)'} [{bool_text(installation.config_exists)}]",
-        f"- {translate('settings.install.python')}: {installation.python_executable or '(not found)'} [{bool_text(installation.python_exists)}]",
+        f"- {translate('settings.install.plugin_dir')}: {_display_path(installation.plugin_dir) or '(not found)'}",
+        f"- {translate('settings.install.config')}: {_display_path(installation.config_path) or '(not resolved)'} [{bool_text(installation.config_exists)}]",
+        f"- {translate('settings.install.python')}: {_display_path(installation.python_executable) or '(not found)'} [{bool_text(installation.python_exists)}]",
         f"- {translate('settings.install.ida_mcp_py')}: {bool_text(installation.ida_mcp_py_exists)}",
         f"- {translate('settings.install.ida_mcp_pkg')}: {bool_text(installation.ida_mcp_package_exists)}",
         "",
         f"{translate('settings.install.requirements')}:",
-        f"- {translate('settings.install.requirements_path')}: {installation.requirements_path or '(not found)'}",
+        f"- {translate('settings.install.requirements_path')}: {_display_path(installation.requirements_path) or '(not found)'}",
         f"- {translate('settings.install.requirements_status')}: {_format_requirement_summary(installation)}",
     ]
     if installation.warnings:
@@ -177,8 +182,8 @@ def build_reinstall_message(
     lines = [
         result.summary,
         "",
-        f"{translate('settings.install.plugin_dir')}: {result.check.plugin_dir or '(not found)'}",
-        f"{translate('settings.install.config')}: {result.config_path or result.check.config_path or '(not resolved)'}",
+        f"{translate('settings.install.plugin_dir')}: {_display_path(result.check.plugin_dir) or '(not found)'}",
+        f"{translate('settings.install.config')}: {_display_path(result.config_path or result.check.config_path) or '(not resolved)'}",
         f"{translate('settings.install.created')}: {bool_text(result.created)}",
         f"{translate('settings.install.already_exists')}: {bool_text(result.already_exists)}",
         f"{translate('settings.install.python_exists')}: {bool_text(result.check.python_exists)}",

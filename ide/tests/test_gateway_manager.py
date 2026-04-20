@@ -1,3 +1,11 @@
+"""Tests for GatewayManager — exercises public signals and observable state only.
+
+Tests drive the manager through its public API (refresh / start_gateway /
+stop_gateway) and verify behavior via the signals it emits and the state
+it exposes (is_busy, snapshot, auto_refresh_timer).  Worker creation is
+monkeypatched with a stub so no real threads are spawned.
+"""
+
 import os
 
 from PySide6.QtCore import QObject, Signal
@@ -29,6 +37,10 @@ def _app() -> QApplication:
         app = QApplication([])
     return app
 
+
+# ---------------------------------------------------------------------------
+# Stub supervisor client
+# ---------------------------------------------------------------------------
 
 class _StubSupervisorClient(SupervisorClient):
     def __init__(self, language: str = "en") -> None:
@@ -74,6 +86,10 @@ class _StubSupervisorClient(SupervisorClient):
         return _build_snapshot(self.ide_config)
 
 
+# ---------------------------------------------------------------------------
+# Fake worker — QObject stub with matching signals, records calls
+# ---------------------------------------------------------------------------
+
 class _FakeWorker(QObject):
     progress = Signal(str)
     finished = Signal(object)
@@ -96,6 +112,17 @@ class _FakeWorker(QObject):
     def isRunning(self) -> bool:
         return self._running
 
+    def quit(self) -> None:
+        self._running = False
+
+    def wait(self, msecs: int = 0) -> bool:  # noqa: ARG002
+        self._running = False
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Snapshot builder
+# ---------------------------------------------------------------------------
 
 def _build_snapshot(
     ide_config: IdeConfig,
@@ -143,12 +170,16 @@ def _build_snapshot(
     )
 
 
-def test_gateway_manager_worker_signals_drive_busy_logs_and_snapshot(
-    monkeypatch,
-) -> None:
+# ===================================================================
+# Tests — all driven through public API + signal emission
+# ===================================================================
+
+def test_refresh_drives_busy_snapshot_and_log_signals(monkeypatch) -> None:
+    """refresh() → busy True → worker emits progress/finished → busy False."""
     _app()
     _FakeWorker.instances.clear()
     monkeypatch.setattr("app.services.gateway_manager._GatewayWorker", _FakeWorker)
+
     client = _StubSupervisorClient()
     manager = GatewayManager(client)
     busy_states: list[bool] = []
@@ -158,20 +189,21 @@ def test_gateway_manager_worker_signals_drive_busy_logs_and_snapshot(
     manager.log_message.connect(log_messages.append)
     manager.snapshot_ready.connect(snapshots.append)
 
+    # 1. Start a refresh.
     manager.refresh()
-
     worker = _FakeWorker.instances[-1]
     assert worker.action == "refresh"
     assert worker.started is True
     assert manager.is_busy is True
     assert busy_states == [True]
 
+    # 2. Emit progress from the worker.
     worker.progress.emit("refresh step")
-
     assert len(log_messages) == 1
     assert log_messages[0].endswith("refresh step")
     assert log_messages[0].startswith("[")
 
+    # 3. Worker finishes — mark not running, then emit finished.
     worker._running = False
     finished_snapshot = _build_snapshot(
         client.ide_config,
@@ -180,6 +212,7 @@ def test_gateway_manager_worker_signals_drive_busy_logs_and_snapshot(
     )
     worker.finished.emit(finished_snapshot)
 
+    # 4. Manager transitions to not-busy and delivers the snapshot.
     assert manager.is_busy is False
     assert manager.snapshot is finished_snapshot
     assert snapshots == [finished_snapshot]
@@ -188,20 +221,74 @@ def test_gateway_manager_worker_signals_drive_busy_logs_and_snapshot(
     assert manager._auto_refresh_timer.interval() == 10000
 
 
-def test_gateway_manager_finished_stops_auto_refresh_when_gateway_is_down() -> None:
+def test_stopped_snapshot_disables_auto_refresh(monkeypatch) -> None:
+    """When a finished snapshot shows gateway stopped, auto-refresh stops."""
     _app()
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr("app.services.gateway_manager._GatewayWorker", _FakeWorker)
+
     client = _StubSupervisorClient()
     manager = GatewayManager(client)
 
-    manager._on_finished(
-        _build_snapshot(client.ide_config, alive=True, state=GatewayState.RUNNING)
+    # First refresh — gateway running → auto-refresh starts.
+    manager.refresh()
+    running_worker = _FakeWorker.instances[-1]
+    running_worker._running = False
+    running_snapshot = _build_snapshot(
+        client.ide_config, alive=True, state=GatewayState.RUNNING
     )
+    running_worker.finished.emit(running_snapshot)
     assert manager._auto_refresh_timer.isActive() is True
 
+    # Second refresh — gateway stopped → auto-refresh stops.
+    manager.refresh()
+    stopped_worker = _FakeWorker.instances[-1]
+    stopped_worker._running = False
     stopped_snapshot = _build_snapshot(
         client.ide_config, alive=False, state=GatewayState.STOPPED
     )
-    manager._on_finished(stopped_snapshot)
+    stopped_worker.finished.emit(stopped_snapshot)
 
     assert manager.snapshot is stopped_snapshot
     assert manager._auto_refresh_timer.isActive() is False
+
+
+def test_stale_finished_does_not_delete_newer_worker(monkeypatch) -> None:
+    """A late finished signal from worker A must not delete the newer worker B."""
+    _app()
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr("app.services.gateway_manager._GatewayWorker", _FakeWorker)
+
+    client = _StubSupervisorClient()
+    manager = GatewayManager(client)
+    busy_states: list[bool] = []
+    manager.busy_changed.connect(busy_states.append)
+
+    # Start worker A.
+    manager.refresh()
+    worker_a = _FakeWorker.instances[-1]
+
+    # Worker A finishes running but finished signal has NOT been emitted yet.
+    worker_a._running = False
+
+    # Start worker B (A was cleaned up because it's no longer running).
+    manager.refresh()
+    worker_b = _FakeWorker.instances[-1]
+    assert worker_b is not worker_a
+
+    # Now the stale worker A's finished signal arrives (queued delivery).
+    snap_a = _build_snapshot(client.ide_config)
+    worker_a.finished.emit(snap_a)
+
+    # Worker B should still be alive and well.
+    assert manager._worker is worker_b
+    assert manager.is_busy is True
+    # busy_states: [True (A start), True (B start)] — no False from stale A.
+    assert busy_states == [True, True]
+
+    # Worker B finishes normally.
+    worker_b._running = False
+    snap_b = _build_snapshot(client.ide_config, alive=True, state=GatewayState.RUNNING)
+    worker_b.finished.emit(snap_b)
+    assert manager.is_busy is False
+    assert manager.snapshot is snap_b

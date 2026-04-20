@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtWidgets import QFileDialog
+
+from shared.platform import display_path as _display_path
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -39,6 +41,10 @@ from app.presenters.settings_presenter import (
 from app.services.settings_service import SettingsService
 
 
+# ===================================================================
+# Utility widgets
+# ===================================================================
+
 class NoWheelSpinBox(QSpinBox):
     def wheelEvent(self, event) -> None:  # type: ignore[override]
         event.ignore()
@@ -49,7 +55,12 @@ class NoWheelComboBox(QComboBox):
         event.ignore()
 
 
+# ===================================================================
+# Background workers
+# ===================================================================
+
 class _InstallWorker(QThread):
+    """Runs reinstall in a background thread."""
     progress = Signal(str)
     finished = Signal(object)  # InstallationActionResult
 
@@ -69,6 +80,255 @@ class _InstallWorker(QThread):
             self.progress.emit(f"Error: {exc}")
             self.finished.emit(None)
 
+
+class _CheckWorker(QThread):
+    """Runs installation check in a background thread."""
+    finished = Signal(object)  # InstallationCheck
+
+    def __init__(
+        self,
+        settings_service: SettingsService,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._settings_service = settings_service
+
+    def run(self) -> None:
+        try:
+            result = self._settings_service.check_installation()
+            self.finished.emit(result)
+        except Exception:
+            self.finished.emit(None)
+
+
+# ===================================================================
+# ConfigFormBinder — data-driven field ↔ widget mapping
+# ===================================================================
+
+class _ConfigFormBinder:
+    """Owns the field binding table and handles reading/writing form state."""
+
+    _IDA_FIELD_BINDINGS: list[tuple[str, str, str]] = [
+        ("enable_http", "_enable_http", "checkbox"),
+        ("enable_stdio", "_enable_stdio", "checkbox"),
+        ("enable_unsafe", "_enable_unsafe", "checkbox"),
+        ("wsl_path_bridge", "_wsl_path_bridge", "checkbox"),
+        ("http_host", "_http_host", "lineedit"),
+        ("http_port", "_http_port", "spinbox"),
+        ("http_path", "_http_path", "lineedit"),
+        ("ida_default_port", "_ida_default_port", "spinbox"),
+        ("ida_host", "_ida_host", "lineedit"),
+        ("ida_path", "_ida_path", "lineedit"),
+        ("ida_python", "_ida_python", "lineedit"),
+        ("open_in_ida_bundle_dir", "_open_in_ida_bundle_dir", "lineedit"),
+        ("open_in_ida_autonomous", "_open_in_ida_autonomous", "checkbox"),
+        ("auto_start", "_auto_start", "checkbox"),
+        ("server_name", "_server_name", "lineedit"),
+        ("ida_request_timeout", "_ida_request_timeout", "spinbox"),
+        ("debug", "_debug", "checkbox"),
+    ]
+
+    def __init__(self, page: SettingsPage) -> None:
+        self._page = page
+
+    def apply_form_state(self, form_state: SettingsFormState) -> None:
+        """Populate widgets from a SettingsFormState."""
+        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
+            widget = getattr(self._page, widget_attr)
+            value = getattr(form_state, field_name)
+            if widget_type == "checkbox":
+                widget.setChecked(value)
+            elif widget_type == "spinbox":
+                widget.setValue(value)
+            else:
+                widget.setText(str(value))
+
+    def collect_form_state(self, page: SettingsPage) -> SettingsFormState:
+        """Read current widget values into a SettingsFormState."""
+        data: dict[str, object] = {
+            "plugin_dir": page._plugin_dir.text(),
+            "language": str(page._language_combo.currentData() or page._language),
+            "ide_request_timeout": page._ide_request_timeout.value(),
+        }
+        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
+            widget = getattr(page, widget_attr)
+            if widget_type == "checkbox":
+                data[field_name] = widget.isChecked()
+            elif widget_type == "spinbox":
+                data[field_name] = widget.value()
+            else:
+                data[field_name] = widget.text()
+        return SettingsFormState.from_flat_dict(data)
+
+
+# ===================================================================
+# InstallationDisplay — requirements table and installation check UI
+# ===================================================================
+
+class _InstallationDisplay:
+    """Renders installation check results into the requirements table."""
+
+    def __init__(self, page: SettingsPage) -> None:
+        self._page = page
+
+    def _t(self, key: str, **kwargs: object) -> str:
+        return self._page._t(key, **kwargs)
+
+    def apply_installation_check(self, installation) -> None:
+        """Render an InstallationCheck into the requirements widgets."""
+        raw_path = installation.requirements_path or ""
+        display = _display_path(raw_path) if raw_path else ""
+        self._page._requirements_path.setText(
+            display or self._t("settings.install.requirements.missing")
+        )
+        self._page._requirements_table.setHorizontalHeaderLabels(
+            [
+                self._t("settings.install.table.package"),
+                self._t("settings.install.table.required"),
+                self._t("settings.install.table.installed"),
+            ]
+        )
+        rows = self._build_requirement_rows(installation)
+        self._page._requirements_table.setRowCount(len(rows))
+        for row_index, row_values in enumerate(rows):
+            for column_index, value in enumerate(row_values):
+                self._page._requirements_table.setItem(
+                    row_index,
+                    column_index,
+                    QTableWidgetItem(value),
+                )
+
+    def _build_requirement_rows(self, installation) -> list[tuple[str, str, str]]:
+        rows: list[tuple[str, str, str]] = []
+        installed = installation.installed_requirements
+        missing = set(installation.missing_requirements)
+        unresolved = set(installation.unresolved_requirements)
+        for requirement in installation.requirements:
+            if requirement in installed:
+                status = (
+                    f"{self._t('settings.install.table.status.installed')} "
+                    f"({installed[requirement]})"
+                )
+            elif requirement in missing:
+                status = self._t("settings.install.table.status.missing")
+            elif requirement in unresolved:
+                status = self._t("settings.install.table.status.unresolved")
+            else:
+                status = self._t("settings.install.table.status.unresolved")
+            rows.append(
+                (self._requirement_package_name(requirement), requirement, status)
+            )
+        return rows
+
+    @staticmethod
+    def _requirement_package_name(requirement: str) -> str:
+        for index, char in enumerate(requirement):
+            if not (char.isalnum() or char in "._-"):
+                return requirement[:index]
+        return requirement
+
+
+# ===================================================================
+# InstallController — background worker lifecycle for install/check
+# ===================================================================
+
+class _InstallController:
+    """Manages background worker threads for installation and checking.
+
+    All worker creation/teardown is encapsulated here.  The host page
+    receives results through callback callables.
+    """
+
+    def __init__(
+        self,
+        page: SettingsPage,
+        settings_service: SettingsService,
+        *,
+        on_check_result,       # callable(InstallationCheck)
+        on_install_result,     # callable(InstallationActionResult)
+        on_progress,           # callable(str)
+        on_busy_changed,       # callable(bool)
+    ) -> None:
+        self._page = page
+        self._settings_service = settings_service
+        self._on_check_result = on_check_result
+        self._on_install_result = on_install_result
+        self._on_progress = on_progress
+        self._on_busy_changed = on_busy_changed
+        self._install_worker: _InstallWorker | None = None
+        self._check_worker: _CheckWorker | None = None
+
+    @property
+    def is_install_busy(self) -> bool:
+        return self._install_worker is not None and self._install_worker.isRunning()
+
+    def run_check(self) -> None:
+        """Start a background installation check."""
+        self._cleanup_check_worker()
+        worker = _CheckWorker(self._settings_service, parent=self._page)
+        self._check_worker = worker
+        worker.finished.connect(
+            lambda result, w=worker: self._on_check_finished(result, w)
+        )
+        worker.start()
+
+    def run_install(self) -> None:
+        """Start a background reinstall."""
+        if self.is_install_busy:
+            return
+        self._cleanup_install_worker()
+        self._on_busy_changed(False)
+        worker = _InstallWorker(self._settings_service, parent=self._page)
+        self._install_worker = worker
+        worker.progress.connect(self._on_progress)
+        worker.finished.connect(
+            lambda result, w=worker: self._on_install_finished(result, w)
+        )
+        worker.start()
+
+    def _on_check_finished(self, result: object, worker: _CheckWorker) -> None:
+        if self._check_worker is worker:
+            worker.deleteLater()
+            self._check_worker = None
+        if result is not None:
+            self._on_check_result(result)
+
+    def _on_install_finished(self, result: object, worker: _InstallWorker) -> None:
+        if self._install_worker is worker:
+            worker.deleteLater()
+            self._install_worker = None
+            self._on_busy_changed(True)
+        from supervisor.models import InstallationActionResult
+
+        if not isinstance(result, InstallationActionResult):
+            self._on_progress("Error: Unexpected result type")
+            return
+        self._on_install_result(result)
+
+    def _cleanup_install_worker(self) -> None:
+        worker = self._install_worker
+        if worker is None:
+            return
+        if worker.isRunning():
+            worker.quit()
+            worker.wait(3000)
+        worker.deleteLater()
+        self._install_worker = None
+
+    def _cleanup_check_worker(self) -> None:
+        worker = self._check_worker
+        if worker is None:
+            return
+        if worker.isRunning():
+            worker.quit()
+            worker.wait(3000)
+        worker.deleteLater()
+        self._check_worker = None
+
+
+# ===================================================================
+# SettingsPage — thin orchestrator
+# ===================================================================
 
 class SettingsPage(QWidget):
     language_changed = Signal(str)
@@ -170,11 +430,27 @@ class SettingsPage(QWidget):
         self._advanced_runtime_group: QWidget | None = None
         self._wsl_group: QWidget | None = None
 
+        # --- Delegated helpers ---
+        self._form_binder = _ConfigFormBinder(self)
+        self._install_display = _InstallationDisplay(self)
+        self._install_ctrl = _InstallController(
+            self,
+            self._settings_service,
+            on_check_result=self._install_display.apply_installation_check,
+            on_install_result=self._handle_install_result,
+            on_progress=self._on_install_progress,
+            on_busy_changed=self._set_install_buttons_enabled,
+        )
+
         self._build_ui()
         self._apply_snapshot(initial_snapshot)
 
     def _t(self, key: str, **kwargs: object) -> str:
         return self._i18n.t(key, **kwargs)
+
+    # ------------------------------------------------------------------
+    # UI construction
+    # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
         current_row = self._category_list.currentRow()
@@ -212,6 +488,9 @@ class SettingsPage(QWidget):
         ):
             item = QListWidgetItem(name)
             font = item.font()
+            if font.pointSize() <= 0:
+                ps = self.font().pointSize()
+                font.setPointSize(ps if ps > 0 else 10)
             font.setBold(True)
             item.setFont(font)
             self._category_list.addItem(item)
@@ -440,33 +719,12 @@ class SettingsPage(QWidget):
         layout.addStretch(1)
         return widget
 
+    # ------------------------------------------------------------------
+    # Snapshot / state application
+    # ------------------------------------------------------------------
+
     def reload(self) -> None:
         self._apply_snapshot(self._settings_service.load())
-
-    # ------------------------------------------------------------------
-    # Widget ↔ field mapping for IdaMcpConfig fields.
-    # Each entry: (form_field_name, widget_attr_name, widget_type)
-    # widget_type: "checkbox" | "lineedit" | "spinbox"
-    # ------------------------------------------------------------------
-    _IDA_FIELD_BINDINGS: list[tuple[str, str, str]] = [
-        ("enable_http", "_enable_http", "checkbox"),
-        ("enable_stdio", "_enable_stdio", "checkbox"),
-        ("enable_unsafe", "_enable_unsafe", "checkbox"),
-        ("wsl_path_bridge", "_wsl_path_bridge", "checkbox"),
-        ("http_host", "_http_host", "lineedit"),
-        ("http_port", "_http_port", "spinbox"),
-        ("http_path", "_http_path", "lineedit"),
-        ("ida_default_port", "_ida_default_port", "spinbox"),
-        ("ida_host", "_ida_host", "lineedit"),
-        ("ida_path", "_ida_path", "lineedit"),
-        ("ida_python", "_ida_python", "lineedit"),
-        ("open_in_ida_bundle_dir", "_open_in_ida_bundle_dir", "lineedit"),
-        ("open_in_ida_autonomous", "_open_in_ida_autonomous", "checkbox"),
-        ("auto_start", "_auto_start", "checkbox"),
-        ("server_name", "_server_name", "lineedit"),
-        ("ida_request_timeout", "_ida_request_timeout", "spinbox"),
-        ("debug", "_debug", "checkbox"),
-    ]
 
     def _apply_snapshot(self, snapshot) -> None:
         previous_language = self._language
@@ -475,35 +733,31 @@ class SettingsPage(QWidget):
         self._refresh_language_combo()
 
         form_state = snapshot_to_form_state(snapshot)
-        # IDE-owned fields (manual)
         self._plugin_dir.setText(form_state.plugin_dir)
         self._ide_request_timeout.setValue(form_state.ide_request_timeout)
         self._install_python_path.setText(effective_install_python_path(snapshot))
         self._install_plugin_dir.setText(form_state.plugin_dir)
         self._save_hint_label.setText(self._t("settings.save_hint"))
         self._install_notes.setPlaceholderText(self._t("settings.install.placeholder"))
-        self._apply_installation_check(self._settings_service.check_installation())
 
-        # IdaMcpConfig fields (data-driven via binding table)
-        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
-            widget = getattr(self, widget_attr)
-            value = getattr(form_state, field_name)
-            if widget_type == "checkbox":
-                widget.setChecked(value)
-            elif widget_type == "spinbox":
-                widget.setValue(value)
-            else:
-                widget.setText(str(value))
+        # Defer installation check to a background worker — never block UI.
+        self._install_ctrl.run_check()
+
+        self._form_binder.apply_form_state(form_state)
 
         self._sync_wsl_bridge_fields()
         if self._language != previous_language:
             self.language_changed.emit(self._language)
 
+    # ------------------------------------------------------------------
+    # Save / check / install
+    # ------------------------------------------------------------------
+
     def save(self) -> None:
         self._save_settings(show_message=True)
 
     def _save_settings(self, *, show_message: bool) -> None:
-        form_state = self._collect_form_state()
+        form_state = self._form_binder.collect_form_state(self)
         ide_updates, ida_mcp_updates = form_state_to_updates(form_state)
         snapshot = self._settings_service.save(
             ide_updates=ide_updates,
@@ -520,8 +774,11 @@ class SettingsPage(QWidget):
 
     def check(self) -> None:
         self._save_settings(show_message=False)
+        # The save above triggers _apply_snapshot which fires a background
+        # check.  We also run a synchronous check here for the dialog message,
+        # matching the original behaviour for the "Check" button.
         installation = self._settings_service.check_installation()
-        self._apply_installation_check(installation)
+        self._install_display.apply_installation_check(installation)
         report = self._settings_service.check()
         message = build_check_message(report, installation, self._t, self._bool_text)
         self._install_notes.setPlainText(message.details)
@@ -536,23 +793,13 @@ class SettingsPage(QWidget):
         self._set_install_buttons_enabled(False)
         self._install_notes.setPlainText("")
         self._install_notes.append(self._t("settings.install.starting"))
-
-        self._install_worker = _InstallWorker(self._settings_service, parent=self)
-        self._install_worker.progress.connect(self._on_install_progress)
-        self._install_worker.finished.connect(self._on_install_finished)
-        self._install_worker.start()
+        self._install_ctrl.run_install()
 
     def _on_install_progress(self, message: str) -> None:
         self._install_notes.append(message)
 
-    def _on_install_finished(self, result: object) -> None:
-        self._set_install_buttons_enabled(True)
-        from supervisor.models import InstallationActionResult
-
-        if not isinstance(result, InstallationActionResult):
-            self._install_notes.append("[ERROR] Unexpected result type")
-            return
-        self._apply_installation_check(result.check)
+    def _handle_install_result(self, result) -> None:
+        self._install_display.apply_installation_check(result.check)
         message = build_reinstall_message(result, self._t, self._bool_text)
         QMessageBox.information(
             self,
@@ -567,21 +814,9 @@ class SettingsPage(QWidget):
         for button in page.findChildren(QPushButton):
             button.setEnabled(enabled)
 
-    def _collect_form_state(self) -> SettingsFormState:
-        data: dict[str, object] = {
-            "plugin_dir": self._plugin_dir.text(),
-            "language": str(self._language_combo.currentData() or self._language),
-            "ide_request_timeout": self._ide_request_timeout.value(),
-        }
-        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
-            widget = getattr(self, widget_attr)
-            if widget_type == "checkbox":
-                data[field_name] = widget.isChecked()
-            elif widget_type == "spinbox":
-                data[field_name] = widget.value()
-            else:
-                data[field_name] = widget.text()
-        return SettingsFormState.from_flat_dict(data)
+    # ------------------------------------------------------------------
+    # Reusable widget builders
+    # ------------------------------------------------------------------
 
     def _build_config_group(
         self,
@@ -731,55 +966,9 @@ class SettingsPage(QWidget):
     def _bool_text(self, value: bool) -> str:
         return self._t("settings.bool.yes") if value else self._t("settings.bool.no")
 
-    def _apply_installation_check(self, installation) -> None:
-        self._requirements_path.setText(
-            installation.requirements_path
-            or self._t("settings.install.requirements.missing")
-        )
-        self._requirements_table.setHorizontalHeaderLabels(
-            [
-                self._t("settings.install.table.package"),
-                self._t("settings.install.table.required"),
-                self._t("settings.install.table.installed"),
-            ]
-        )
-        rows = self._build_requirement_rows(installation)
-        self._requirements_table.setRowCount(len(rows))
-        for row_index, row_values in enumerate(rows):
-            for column_index, value in enumerate(row_values):
-                self._requirements_table.setItem(
-                    row_index,
-                    column_index,
-                    QTableWidgetItem(value),
-                )
-
-    def _build_requirement_rows(self, installation) -> list[tuple[str, str, str]]:
-        rows: list[tuple[str, str, str]] = []
-        installed = installation.installed_requirements
-        missing = set(installation.missing_requirements)
-        unresolved = set(installation.unresolved_requirements)
-        for requirement in installation.requirements:
-            if requirement in installed:
-                status = (
-                    f"{self._t('settings.install.table.status.installed')} "
-                    f"({installed[requirement]})"
-                )
-            elif requirement in missing:
-                status = self._t("settings.install.table.status.missing")
-            elif requirement in unresolved:
-                status = self._t("settings.install.table.status.unresolved")
-            else:
-                status = self._t("settings.install.table.status.unresolved")
-            rows.append(
-                (self._requirement_package_name(requirement), requirement, status)
-            )
-        return rows
-
-    def _requirement_package_name(self, requirement: str) -> str:
-        for index, char in enumerate(requirement):
-            if not (char.isalnum() or char in "._-"):
-                return requirement[:index]
-        return requirement
+    # ------------------------------------------------------------------
+    # WSL / advanced section toggles
+    # ------------------------------------------------------------------
 
     def _toggle_other_options(self) -> None:
         self._refresh_advanced_section()

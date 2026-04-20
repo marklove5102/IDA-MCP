@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from enum import Enum
 from typing import Any, Callable
 
+from shared.platform import display_path as _display_path
 from supervisor.models import ComponentHealth, SupervisorSnapshot
 
 
@@ -78,10 +79,10 @@ def build_main_window_view_model(
                 "supervisor",
                 snapshot.health.supervisor,
                 {
-                    "config": snapshot.config_store.path,
+                    "config": _display_path(snapshot.config_store.path),
                     "auto_start_gateway": snapshot.config.auto_start_gateway,
                     "request_timeout": snapshot.config.request_timeout,
-                    "plugin_dir": snapshot.config.plugin_dir or "",
+                    "plugin_dir": _display_path(snapshot.config.plugin_dir or ""),
                 },
                 translate,
             ),
@@ -102,9 +103,9 @@ def build_main_window_view_model(
                 "environment",
                 snapshot.health.environment,
                 {
-                    "python": snapshot.environment.python_executable or "",
-                    "ida_mcp": snapshot.environment.ida_mcp_location or "",
-                    "ida_paths": snapshot.environment.ida_path_candidates,
+                    "python": _display_path(snapshot.environment.python_executable or ""),
+                    "ida_mcp": _display_path(snapshot.environment.ida_mcp_location or ""),
+                    "ida_paths": [_display_path(p) for p in (snapshot.environment.ida_path_candidates or [])],
                     "warnings": snapshot.environment.warnings,
                 },
                 translate,
@@ -123,8 +124,8 @@ def build_main_window_view_model(
         ),
         workspace_rows=_build_tree_rows(
             {
-                "ide_config": snapshot.config_store.path,
-                "plugin_dir": snapshot.config.plugin_dir or "",
+                "ide_config": _display_path(snapshot.config_store.path),
+                "plugin_dir": _display_path(snapshot.config.plugin_dir or ""),
                 "request_timeout": snapshot.config.request_timeout,
             },
             translate,
@@ -178,11 +179,11 @@ def _build_instances_card_view_model(
         if input_file:
             from pathlib import PurePath
 
-            file_name = PurePath(input_file).name
+            file_name = PurePath(_display_path(input_file)).name
         elif idb:
             from pathlib import PurePath
 
-            file_name = PurePath(idb).name
+            file_name = PurePath(_display_path(idb)).name
         label = f"#{i}  :{port}  {state}"
         if file_name:
             label += f"  {file_name}"
