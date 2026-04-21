@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-import command
+from ida_mcp import command
 
 
 pytestmark = pytest.mark.lifecycle

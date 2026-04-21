@@ -49,21 +49,36 @@ def get_packaging_root() -> Path:
     return get_runtime_packaging_root()
 
 
-def get_user_config_root(app_name: str = "ida-mcp") -> Path:
-    """Return a per-user config directory without writing into the repo."""
-    if os.name == "nt":
-        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
-        if base:
-            return Path(base) / app_name
-    xdg_config = os.environ.get("XDG_CONFIG_HOME")
-    if xdg_config:
-        return Path(xdg_config) / app_name
-    return Path.home() / ".config" / app_name
+def get_data_root() -> Path:
+    """Return the portable user data directory inside the IDE installation.
+
+    In packaged mode this is ``{exe_dir}/data/``.
+    In development mode this is ``{ide}/data/``.
+
+    All persistent user state (database, skills, etc.) lives here so the
+    entire installation is self-contained and portable.  This directory
+    must **never** be deleted during updates or reinstalls.
+    """
+    return get_project_root() / "data"
 
 
-def get_ide_user_config_root(app_name: str = "ida-mcp") -> Path:
-    """Return the IDE-specific config root below the application config root."""
-    return get_user_config_root(app_name) / "ide"
+def get_ide_user_config_root() -> Path:
+    """Return the IDE user data root.
+
+    Historically this pointed to ``%APPDATA%/ida-mcp/ide/``.  It now
+    returns ``{exe_dir}/data/`` so all user data stays inside the
+    installation directory for full portability.
+    """
+    return ensure_directory(get_data_root())
+
+
+def get_skills_dir() -> Path:
+    """Return the skills installation directory under the IDE data root.
+
+    Skills are stored in ``{exe_dir}/data/skills/`` so they survive
+    plugin reinstalls and updates.
+    """
+    return ensure_directory(get_data_root() / "skills")
 
 
 def ensure_directory(path: Path) -> Path:

@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import json
 
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 
-from shared.platform import display_path as _display_path
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
-    QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QHeaderView,
     QHBoxLayout,
@@ -25,10 +20,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QStackedWidget,
     QTableWidget,
-    QTableWidgetItem,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
@@ -37,7 +30,6 @@ from PySide6.QtWidgets import (
 
 from app.i18n import I18n, normalize_language
 from app.presenters.settings_presenter import (
-    SettingsFormState,
     build_check_message,
     build_reinstall_message,
     effective_install_python_path,
@@ -45,733 +37,16 @@ from app.presenters.settings_presenter import (
     snapshot_to_form_state,
 )
 from app.services.settings_service import SettingsService
-
-
-# ===================================================================
-# Utility widgets
-# ===================================================================
-
-class NoWheelSpinBox(QSpinBox):
-    def wheelEvent(self, event) -> None:  # type: ignore[override]
-        event.ignore()
-
-
-class NoWheelComboBox(QComboBox):
-    def wheelEvent(self, event) -> None:  # type: ignore[override]
-        event.ignore()
-
-
-class NoWheelDoubleSpinBox(QDoubleSpinBox):
-    def wheelEvent(self, event) -> None:  # type: ignore[override]
-        event.ignore()
-
-
-# ===================================================================
-# Model provider dialog
-# ===================================================================
-
-class ModelProviderDialog(QDialog):
-    """Dialog for adding or editing a model provider entry."""
-
-    def __init__(
-        self,
-        i18n,
-        *,
-        provider=None,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self._i18n = i18n
-        self._provider = provider  # None = add new, else edit existing
-        self._setup_ui()
-
-    def _t(self, key: str, **kwargs: object) -> str:
-        return self._i18n.t(key, **kwargs)
-
-    def _setup_ui(self) -> None:
-        self.setWindowTitle(
-            self._t("settings.model.dialog.add")
-            if self._provider is None
-            else self._t("settings.model.dialog.edit")
-        )
-        self.setObjectName("modelProviderDialog")
-        self.setMinimumWidth(480)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(6)
-        layout.setContentsMargins(24, 24, 24, 24)
-
-        # --- Section: Identity ---
-        layout.addWidget(self._section_label(self._t("settings.field.model_name")))
-        self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("My GPT-4o")
-        layout.addWidget(self._name_edit)
-
-        layout.addSpacing(2)
-        layout.addWidget(self._field_label(self._t("settings.field.model_id")))
-        self._model_id_edit = QLineEdit()
-        self._model_id_edit.setPlaceholderText("gpt-4o")
-        layout.addWidget(self._model_id_edit)
-
-        layout.addWidget(self._separator())
-        layout.addSpacing(4)
-
-        # --- Section: Connection ---
-        layout.addWidget(self._section_label(self._t("settings.field.model_base_url")))
-        self._base_url_edit = QLineEdit()
-        self._base_url_edit.setPlaceholderText("https://api.openai.com/v1")
-        layout.addWidget(self._base_url_edit)
-
-        layout.addSpacing(2)
-        layout.addWidget(self._field_label(self._t("settings.field.model_api_key")))
-        self._api_key_edit = QLineEdit()
-        self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_key_edit.setPlaceholderText("sk-...")
-        layout.addWidget(self._api_key_edit)
-
-        layout.addSpacing(2)
-        layout.addWidget(self._field_label(self._t("settings.field.model_api_mode")))
-        self._api_mode_combo = NoWheelComboBox()
-        self._api_mode_items = [
-            ("openai_responses", self._t("settings.model.api_mode.openai_responses")),
-            ("openai_compatible", self._t("settings.model.api_mode.openai_compatible")),
-            ("anthropic", self._t("settings.model.api_mode.anthropic")),
-            ("gemini", self._t("settings.model.api_mode.gemini")),
-        ]
-        for value, label in self._api_mode_items:
-            self._api_mode_combo.addItem(label, value)
-        self._api_mode_combo.setCurrentIndex(1)  # default: openai_compatible
-        layout.addWidget(self._api_mode_combo)
-
-        layout.addWidget(self._separator())
-        layout.addSpacing(4)
-
-        # --- Section: Parameters ---
-        layout.addWidget(self._section_label(self._t("settings.field.model_top_p")))
-        self._top_p_spin = NoWheelDoubleSpinBox()
-        self._top_p_spin.setRange(0.0, 1.0)
-        self._top_p_spin.setSingleStep(0.05)
-        self._top_p_spin.setDecimals(2)
-        self._top_p_spin.setValue(1.0)
-        layout.addWidget(self._top_p_spin)
-
-        layout.addSpacing(2)
-        layout.addWidget(self._field_label(self._t("settings.field.model_temperature")))
-        self._temp_spin = NoWheelDoubleSpinBox()
-        self._temp_spin.setRange(0.0, 2.0)
-        self._temp_spin.setSingleStep(0.1)
-        self._temp_spin.setDecimals(1)
-        self._temp_spin.setValue(0.7)
-        layout.addWidget(self._temp_spin)
-
-        layout.addWidget(self._separator())
-        layout.addSpacing(4)
-
-        # --- Section: State ---
-        layout.addWidget(self._field_label(self._t("settings.skills.enabled")))
-        self._enabled_check = QCheckBox()
-        self._enabled_check.setChecked(True)
-        layout.addWidget(self._enabled_check)
-
-        # Validation error label (hidden until needed)
-        self._error_label = QLabel("")
-        self._error_label.setObjectName("settingsErrorLabel")
-        self._error_label.setWordWrap(True)
-        self._error_label.hide()
-        layout.addWidget(self._error_label)
-
-        layout.addSpacing(8)
-
-        # Buttons
-        self._buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
-        )
-        self._buttons.accepted.connect(self._validate_and_accept)
-        self._buttons.rejected.connect(self.reject)
-        layout.addWidget(self._buttons)
-
-        # Pre-fill if editing
-        if self._provider is not None:
-            self._name_edit.setText(self._provider.name or "")
-            self._base_url_edit.setText(self._provider.base_url or "")
-            self._api_key_edit.setText(self._provider.api_key or "")
-            self._model_id_edit.setText(self._provider.model_name or "")
-            self._top_p_spin.setValue(self._provider.top_p)
-            self._temp_spin.setValue(self._provider.temperature)
-            self._enabled_check.setChecked(self._provider.enabled)
-            # Set api_mode combo
-            for i, (value, _) in enumerate(self._api_mode_items):
-                if value == self._provider.api_mode:
-                    self._api_mode_combo.setCurrentIndex(i)
-                    break
-
-    def get_values(self) -> dict:
-        """Return a dict of all field values."""
-        return {
-            "name": self._name_edit.text().strip(),
-            "base_url": self._base_url_edit.text().strip(),
-            "api_key": self._api_key_edit.text().strip(),
-            "api_mode": self._api_mode_combo.currentData() or "openai_compatible",
-            "model_name": self._model_id_edit.text().strip(),
-            "top_p": self._top_p_spin.value(),
-            "temperature": self._temp_spin.value(),
-            "enabled": self._enabled_check.isChecked(),
-        }
-
-    def _section_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("dialogSectionTitle")
-        return label
-
-    def _field_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("settingsFieldLabel")
-        return label
-
-    def _separator(self) -> QFrame:
-        line = QFrame()
-        line.setObjectName("dialogSeparator")
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFixedHeight(1)
-        return line
-
-    def _validate_and_accept(self) -> None:
-        """Validate required fields before accepting the dialog."""
-        errors: list[str] = []
-        name = self._name_edit.text().strip()
-        model_id = self._model_id_edit.text().strip()
-
-        if not name:
-            errors.append(self._t("settings.model.validation.name_required"))
-        if not model_id:
-            errors.append(self._t("settings.model.validation.model_id_required"))
-
-        if errors:
-            self._error_label.setText("\n".join(errors))
-            self._error_label.show()
-            return
-
-        self._error_label.hide()
-        self.accept()
-
-
-# ===================================================================
-# MCP server dialog
-# ===================================================================
-
-class McpServerDialog(QDialog):
-    """Dialog for adding or editing an MCP server entry."""
-
-    def __init__(self, i18n, *, server=None, parent=None) -> None:
-        super().__init__(parent)
-        self._i18n = i18n
-        self._server = server
-        self._setup_ui()
-
-    def _t(self, key: str, **kwargs: object) -> str:
-        return self._i18n.t(key, **kwargs)
-
-    def _setup_ui(self) -> None:
-        self.setWindowTitle(
-            self._t("settings.mcp.dialog.add")
-            if self._server is None
-            else self._t("settings.mcp.dialog.edit")
-        )
-        self.setObjectName("modelProviderDialog")
-        self.setMinimumWidth(480)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(6)
-        layout.setContentsMargins(24, 24, 24, 24)
-
-        # --- Name ---
-        layout.addWidget(self._section_label(self._t("settings.field.mcp_server_name")))
-        self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("my-server")
-        layout.addWidget(self._name_edit)
-
-        # --- Transport ---
-        layout.addWidget(self._section_label(self._t("settings.field.mcp_transport")))
-        self._transport_combo = NoWheelComboBox()
-        self._transport_items = [
-            ("stdio", self._t("settings.mcp.transport.stdio")),
-            ("http", self._t("settings.mcp.transport.http")),
-            ("sse", self._t("settings.mcp.transport.sse")),
-        ]
-        for value, label in self._transport_items:
-            self._transport_combo.addItem(label, value)
-        self._transport_combo.currentIndexChanged.connect(self._on_transport_changed)
-        layout.addWidget(self._transport_combo)
-
-        layout.addWidget(self._separator())
-        layout.addSpacing(4)
-
-        # --- Stdio fields ---
-        self._stdio_widget = QWidget()
-        stdio_layout = QVBoxLayout(self._stdio_widget)
-        stdio_layout.setContentsMargins(0, 0, 0, 0)
-        stdio_layout.setSpacing(6)
-
-        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_command")))
-        self._command_edit = QLineEdit()
-        self._command_edit.setPlaceholderText("python")
-        stdio_layout.addWidget(self._command_edit)
-
-        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_args")))
-        self._args_edit = QTextEdit()
-        self._args_edit.setMaximumHeight(72)
-        self._args_edit.setPlaceholderText("/path/to/server.py\n--verbose")
-        stdio_layout.addWidget(self._args_edit)
-
-        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_env")))
-        self._env_edit = QTextEdit()
-        self._env_edit.setMaximumHeight(72)
-        self._env_edit.setPlaceholderText("API_KEY=xxx\nANOTHER_VAR=value")
-        stdio_layout.addWidget(self._env_edit)
-
-        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_cwd")))
-        self._cwd_edit = QLineEdit()
-        self._cwd_edit.setPlaceholderText("/working/directory")
-        stdio_layout.addWidget(self._cwd_edit)
-
-        layout.addWidget(self._stdio_widget)
-
-        # --- HTTP/SSE fields ---
-        self._http_widget = QWidget()
-        http_layout = QVBoxLayout(self._http_widget)
-        http_layout.setContentsMargins(0, 0, 0, 0)
-        http_layout.setSpacing(6)
-
-        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_url")))
-        self._url_edit = QLineEdit()
-        self._url_edit.setPlaceholderText("http://localhost:8000/mcp")
-        http_layout.addWidget(self._url_edit)
-
-        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_headers")))
-        self._headers_edit = QTextEdit()
-        self._headers_edit.setMaximumHeight(72)
-        self._headers_edit.setPlaceholderText("Authorization: Bearer token\nX-Custom-Header: value")
-        http_layout.addWidget(self._headers_edit)
-
-        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_timeout")))
-        self._timeout_spin = NoWheelDoubleSpinBox()
-        self._timeout_spin.setRange(1.0, 600.0)
-        self._timeout_spin.setSingleStep(5.0)
-        self._timeout_spin.setDecimals(1)
-        self._timeout_spin.setValue(30.0)
-        self._timeout_spin.setSuffix(" s")
-        http_layout.addWidget(self._timeout_spin)
-
-        layout.addWidget(self._http_widget)
-
-        # --- Enabled ---
-        self._enabled_check = QCheckBox(self._t("settings.skills.enabled"))
-        self._enabled_check.setChecked(True)
-        layout.addWidget(self._enabled_check)
-
-        layout.addSpacing(8)
-
-        # --- Buttons ---
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self._validate_and_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        # --- Pre-fill ---
-        if self._server is not None:
-            self._name_edit.setText(self._server.name or "")
-            self._command_edit.setText(self._server.command or "")
-            self._cwd_edit.setText(self._server.cwd or "")
-            self._url_edit.setText(self._server.url or "")
-            self._timeout_spin.setValue(self._server.timeout)
-            self._enabled_check.setChecked(self._server.enabled)
-
-            # Decode JSON args → plain text lines
-            try:
-                args_list = json.loads(self._server.args) if self._server.args else []
-                self._args_edit.setPlainText("\n".join(args_list))
-            except (json.JSONDecodeError, TypeError):
-                self._args_edit.setPlainText(self._server.args or "")
-
-            # Decode JSON env → "KEY=VALUE" lines
-            try:
-                env_dict = json.loads(self._server.env) if self._server.env else {}
-                self._env_edit.setPlainText(
-                    "\n".join(f"{k}={v}" for k, v in env_dict.items())
-                )
-            except (json.JSONDecodeError, TypeError):
-                self._env_edit.setPlainText(self._server.env or "")
-
-            # Decode JSON headers → "Key: Value" lines
-            try:
-                hdr_dict = json.loads(self._server.headers) if self._server.headers else {}
-                self._headers_edit.setPlainText(
-                    "\n".join(f"{k}: {v}" for k, v in hdr_dict.items())
-                )
-            except (json.JSONDecodeError, TypeError):
-                self._headers_edit.setPlainText(self._server.headers or "")
-
-            for i, (value, _) in enumerate(self._transport_items):
-                if value == self._server.transport:
-                    self._transport_combo.setCurrentIndex(i)
-                    break
-        else:
-            self._transport_combo.setCurrentIndex(0)
-
-        self._on_transport_changed()
-
-    def _section_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("dialogSectionTitle")
-        return label
-
-    def _field_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("settingsFieldLabel")
-        return label
-
-    def _separator(self) -> QFrame:
-        line = QFrame()
-        line.setObjectName("dialogSeparator")
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFixedHeight(1)
-        return line
-
-    def _on_transport_changed(self) -> None:
-        transport = self._transport_combo.currentData() or "stdio"
-        is_stdio = transport == "stdio"
-        self._stdio_widget.setVisible(is_stdio)
-        self._http_widget.setVisible(not is_stdio)
-
-    def _validate_and_accept(self) -> None:
-        errors: list[str] = []
-        if not self._name_edit.text().strip():
-            errors.append(self._t("settings.field.mcp_server_name") + " is required.")
-        transport = self._transport_combo.currentData() or "stdio"
-        if transport == "stdio":
-            if not self._command_edit.text().strip():
-                errors.append(self._t("settings.field.mcp_command") + " is required.")
-        else:
-            if not self._url_edit.text().strip():
-                errors.append(self._t("settings.field.mcp_url") + " is required.")
-        if errors:
-            QMessageBox.warning(self, self._t("settings.dialog.settings"), "\n".join(errors))
-            return
-        self.accept()
-
-    def get_values(self) -> dict:
-        transport = self._transport_combo.currentData() or "stdio"
-
-        # args: plain text lines → JSON array string
-        args_raw = self._args_edit.toPlainText().strip()
-        args_list = [line.strip() for line in args_raw.splitlines() if line.strip()]
-        args_json = json.dumps(args_list)
-
-        # env: "KEY=VALUE" lines → JSON object string
-        env_raw = self._env_edit.toPlainText().strip()
-        env_dict: dict[str, str] = {}
-        for line in env_raw.splitlines():
-            line = line.strip()
-            if "=" in line:
-                k, v = line.split("=", 1)
-                env_dict[k.strip()] = v.strip()
-        env_json = json.dumps(env_dict) if env_dict else ""
-
-        # headers: "Key: Value" lines → JSON object string
-        headers_raw = self._headers_edit.toPlainText().strip()
-        headers_dict: dict[str, str] = {}
-        for line in headers_raw.splitlines():
-            line = line.strip()
-            if ":" in line:
-                k, v = line.split(":", 1)
-                headers_dict[k.strip()] = v.strip()
-        headers_json = json.dumps(headers_dict) if headers_dict else ""
-
-        return {
-            "name": self._name_edit.text().strip(),
-            "transport": transport,
-            "command": self._command_edit.text().strip(),
-            "args": args_json,
-            "env": env_json,
-            "cwd": self._cwd_edit.text().strip(),
-            "url": self._url_edit.text().strip(),
-            "headers": headers_json,
-            "timeout": self._timeout_spin.value(),
-            "enabled": self._enabled_check.isChecked(),
-        }
-
-class _InstallWorker(QThread):
-    """Runs reinstall in a background thread."""
-    progress = Signal(str)
-    finished = Signal(object)  # InstallationActionResult
-
-    def __init__(
-        self,
-        settings_service: SettingsService,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self._settings_service = settings_service
-
-    def run(self) -> None:
-        try:
-            result = self._settings_service.reinstall(on_progress=self.progress.emit)
-            self.finished.emit(result)
-        except Exception as exc:
-            self.progress.emit(f"Error: {exc}")
-            self.finished.emit(None)
-
-
-class _CheckWorker(QThread):
-    """Runs installation check in a background thread."""
-    finished = Signal(object)  # InstallationCheck
-
-    def __init__(
-        self,
-        settings_service: SettingsService,
-        parent=None,
-    ) -> None:
-        super().__init__(parent)
-        self._settings_service = settings_service
-
-    def run(self) -> None:
-        try:
-            result = self._settings_service.check_installation()
-            self.finished.emit(result)
-        except Exception:
-            self.finished.emit(None)
-
-
-# ===================================================================
-# ConfigFormBinder — data-driven field ↔ widget mapping
-# ===================================================================
-
-class _ConfigFormBinder:
-    """Owns the field binding table and handles reading/writing form state."""
-
-    _IDA_FIELD_BINDINGS: list[tuple[str, str, str]] = [
-        ("enable_http", "_enable_http", "checkbox"),
-        ("enable_stdio", "_enable_stdio", "checkbox"),
-        ("enable_unsafe", "_enable_unsafe", "checkbox"),
-        ("wsl_path_bridge", "_wsl_path_bridge", "checkbox"),
-        ("http_host", "_http_host", "lineedit"),
-        ("http_port", "_http_port", "spinbox"),
-        ("http_path", "_http_path", "lineedit"),
-        ("ida_default_port", "_ida_default_port", "spinbox"),
-        ("ida_host", "_ida_host", "lineedit"),
-        ("ida_path", "_ida_path", "lineedit"),
-        ("ida_python", "_ida_python", "lineedit"),
-        ("open_in_ida_bundle_dir", "_open_in_ida_bundle_dir", "lineedit"),
-        ("open_in_ida_autonomous", "_open_in_ida_autonomous", "checkbox"),
-        ("auto_start", "_auto_start", "checkbox"),
-        ("server_name", "_server_name", "lineedit"),
-        ("ida_request_timeout", "_ida_request_timeout", "spinbox"),
-        ("debug", "_debug", "checkbox"),
-    ]
-
-    def __init__(self, page: SettingsPage) -> None:
-        self._page = page
-
-    def apply_form_state(self, form_state: SettingsFormState) -> None:
-        """Populate widgets from a SettingsFormState."""
-        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
-            widget = getattr(self._page, widget_attr)
-            value = getattr(form_state, field_name)
-            if widget_type == "checkbox":
-                widget.setChecked(value)
-            elif widget_type == "spinbox":
-                widget.setValue(value)
-            else:
-                widget.setText(str(value))
-
-    def collect_form_state(self, page: SettingsPage) -> SettingsFormState:
-        """Read current widget values into a SettingsFormState."""
-        data: dict[str, object] = {
-            "plugin_dir": page._plugin_dir.text(),
-            "language": str(page._language_combo.currentData() or page._language),
-            "ide_request_timeout": page._ide_request_timeout.value(),
-        }
-        for field_name, widget_attr, widget_type in self._IDA_FIELD_BINDINGS:
-            widget = getattr(page, widget_attr)
-            if widget_type == "checkbox":
-                data[field_name] = widget.isChecked()
-            elif widget_type == "spinbox":
-                data[field_name] = widget.value()
-            else:
-                data[field_name] = widget.text()
-        return SettingsFormState.from_flat_dict(data)
-
-
-# ===================================================================
-# InstallationDisplay — requirements table and installation check UI
-# ===================================================================
-
-class _InstallationDisplay:
-    """Renders installation check results into the requirements table."""
-
-    def __init__(self, page: SettingsPage) -> None:
-        self._page = page
-
-    def _t(self, key: str, **kwargs: object) -> str:
-        return self._page._t(key, **kwargs)
-
-    def apply_installation_check(self, installation) -> None:
-        """Render an InstallationCheck into the requirements widgets."""
-        raw_path = installation.requirements_path or ""
-        display = _display_path(raw_path) if raw_path else ""
-        self._page._requirements_path.setText(
-            display or self._t("settings.install.requirements.missing")
-        )
-        self._page._requirements_table.setHorizontalHeaderLabels(
-            [
-                self._t("settings.install.table.package"),
-                self._t("settings.install.table.required"),
-                self._t("settings.install.table.installed"),
-            ]
-        )
-        rows = self._build_requirement_rows(installation)
-        self._page._requirements_table.setRowCount(len(rows))
-        for row_index, row_values in enumerate(rows):
-            for column_index, value in enumerate(row_values):
-                self._page._requirements_table.setItem(
-                    row_index,
-                    column_index,
-                    QTableWidgetItem(value),
-                )
-
-    def _build_requirement_rows(self, installation) -> list[tuple[str, str, str]]:
-        rows: list[tuple[str, str, str]] = []
-        installed = installation.installed_requirements
-        missing = set(installation.missing_requirements)
-        unresolved = set(installation.unresolved_requirements)
-        for requirement in installation.requirements:
-            if requirement in installed:
-                status = (
-                    f"{self._t('settings.install.table.status.installed')} "
-                    f"({installed[requirement]})"
-                )
-            elif requirement in missing:
-                status = self._t("settings.install.table.status.missing")
-            elif requirement in unresolved:
-                status = self._t("settings.install.table.status.unresolved")
-            else:
-                status = self._t("settings.install.table.status.unresolved")
-            rows.append(
-                (self._requirement_package_name(requirement), requirement, status)
-            )
-        return rows
-
-    @staticmethod
-    def _requirement_package_name(requirement: str) -> str:
-        for index, char in enumerate(requirement):
-            if not (char.isalnum() or char in "._-"):
-                return requirement[:index]
-        return requirement
-
-
-# ===================================================================
-# InstallController — background worker lifecycle for install/check
-# ===================================================================
-
-class _InstallController:
-    """Manages background worker threads for installation and checking.
-
-    All worker creation/teardown is encapsulated here.  The host page
-    receives results through callback callables.
-    """
-
-    def __init__(
-        self,
-        page: SettingsPage,
-        settings_service: SettingsService,
-        *,
-        on_check_result,       # callable(InstallationCheck)
-        on_install_result,     # callable(InstallationActionResult)
-        on_progress,           # callable(str)
-        on_busy_changed,       # callable(bool)
-    ) -> None:
-        self._page = page
-        self._settings_service = settings_service
-        self._on_check_result = on_check_result
-        self._on_install_result = on_install_result
-        self._on_progress = on_progress
-        self._on_busy_changed = on_busy_changed
-        self._install_worker: _InstallWorker | None = None
-        self._check_worker: _CheckWorker | None = None
-
-    @property
-    def is_install_busy(self) -> bool:
-        return self._install_worker is not None and self._install_worker.isRunning()
-
-    def run_check(self) -> None:
-        """Start a background installation check."""
-        self._cleanup_check_worker()
-        worker = _CheckWorker(self._settings_service, parent=self._page)
-        self._check_worker = worker
-        worker.finished.connect(
-            lambda result, w=worker: self._on_check_finished(result, w)
-        )
-        worker.start()
-
-    def run_install(self) -> None:
-        """Start a background reinstall."""
-        if self.is_install_busy:
-            return
-        self._cleanup_install_worker()
-        self._on_busy_changed(False)
-        worker = _InstallWorker(self._settings_service, parent=self._page)
-        self._install_worker = worker
-        worker.progress.connect(self._on_progress)
-        worker.finished.connect(
-            lambda result, w=worker: self._on_install_finished(result, w)
-        )
-        worker.start()
-
-    def _on_check_finished(self, result: object, worker: _CheckWorker) -> None:
-        if self._check_worker is not worker:
-            # Stale worker — discard the result to avoid overwriting newer state.
-            worker.deleteLater()
-            return
-        worker.deleteLater()
-        self._check_worker = None
-        if result is not None:
-            self._on_check_result(result)
-
-    def _on_install_finished(self, result: object, worker: _InstallWorker) -> None:
-        if self._install_worker is worker:
-            worker.deleteLater()
-            self._install_worker = None
-            self._on_busy_changed(True)
-        from supervisor.models import InstallationActionResult
-
-        if not isinstance(result, InstallationActionResult):
-            self._on_progress("Error: Unexpected result type")
-            return
-        self._on_install_result(result)
-
-    def _cleanup_install_worker(self) -> None:
-        worker = self._install_worker
-        if worker is None:
-            return
-        if worker.isRunning():
-            worker.quit()
-            worker.wait(3000)
-        worker.deleteLater()
-        self._install_worker = None
-
-    def _cleanup_check_worker(self) -> None:
-        worker = self._check_worker
-        if worker is None:
-            return
-        if worker.isRunning():
-            worker.quit()
-            worker.wait(3000)
-        worker.deleteLater()
-        self._check_worker = None
+from app.ui.settings.dialogs import McpServerDialog, ModelProviderDialog
+from app.ui.settings.widgets import (
+    NoWheelComboBox,
+    NoWheelSpinBox,
+)
+from app.ui.settings.workers import (
+    _ConfigFormBinder,
+    _InstallController,
+    _InstallationDisplay,
+)
 
 
 # ===================================================================
@@ -792,8 +67,6 @@ class SettingsPage(QWidget):
         self._language = normalize_language(initial_snapshot.ide_config.language)
         self._i18n = I18n(self._language)
 
-        self._title_label = QLabel()
-        self._title_label.setObjectName("settingsTitle")
         self._category_list = QListWidget()
         self._stack = QStackedWidget()
         self._category_row_connected = False
@@ -857,7 +130,6 @@ class SettingsPage(QWidget):
         self._ida_request_timeout.setRange(1, 3600)
         self._ida_request_timeout.setSuffix(" s")
         self._debug = QCheckBox()
-        self._advanced_container = QWidget()
 
         # --- Model providers widgets ---
         self._model_providers_container = QWidget()
@@ -880,13 +152,6 @@ class SettingsPage(QWidget):
         self._skills_layout.setSpacing(10)
         self._skills_layout.addStretch(1)
 
-        self._advanced_layout = QVBoxLayout(self._advanced_container)
-        self._advanced_layout.setContentsMargins(0, 0, 0, 0)
-        self._advanced_layout.setSpacing(12)
-        self._advanced_toggle = QToolButton()
-        self._advanced_toggle.setCheckable(True)
-        self._advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self._advanced_toggle.clicked.connect(self._toggle_other_options)
         self._wsl_toggle = QToolButton()
         self._wsl_toggle.setCheckable(True)
         self._wsl_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
@@ -896,7 +161,6 @@ class SettingsPage(QWidget):
         self._wsl_layout.setContentsMargins(0, 0, 0, 0)
         self._wsl_layout.setSpacing(12)
         self._wsl_path_bridge.toggled.connect(self._sync_wsl_bridge_fields)
-        self._advanced_runtime_group: QWidget | None = None
         self._wsl_group: QWidget | None = None
 
         # --- Delegated helpers ---
@@ -924,6 +188,7 @@ class SettingsPage(QWidget):
     def _build_ui(self) -> None:
         current_row = self._category_list.currentRow()
         self._save_hint_labels.clear()
+        self._flush_retained_widgets()
         old_layout = self.layout()
         if old_layout is None:
             root_layout = QVBoxLayout(self)
@@ -1108,12 +373,9 @@ class SettingsPage(QWidget):
             )
         )
 
-        self._refresh_advanced_section()
         self._refresh_wsl_section()
         layout.addWidget(self._wsl_toggle)
         layout.addWidget(self._wsl_container)
-        layout.addWidget(self._advanced_toggle)
-        layout.addWidget(self._advanced_container)
 
         layout.addStretch(1)
 
@@ -1932,6 +1194,7 @@ class SettingsPage(QWidget):
 
         self._form_binder.apply_form_state(form_state)
 
+        self._refresh_model_cards()
         self._refresh_mcp_servers()
         self._refresh_skills()
 
@@ -1945,12 +1208,14 @@ class SettingsPage(QWidget):
 
     def cleanup(self) -> None:
         """Stop background workers. Call before the page is destroyed."""
-        self._install_ctrl._cleanup_check_worker()
-        self._install_ctrl._cleanup_install_worker()
+        self._install_ctrl.cleanup()
+        self._flush_retained_widgets()
 
-    def closeEvent(self, event) -> None:  # type: ignore[override]
-        self.cleanup()
-        super().closeEvent(event)
+    def _flush_retained_widgets(self) -> None:
+        """Schedule deferred deletion for all retained widgets."""
+        for w in self._retained_widgets:
+            w.deleteLater()
+        self._retained_widgets.clear()
 
     def save(self) -> None:
         self._save_settings(show_message=True)
@@ -2173,11 +1438,8 @@ class SettingsPage(QWidget):
         return self._t("settings.bool.yes") if value else self._t("settings.bool.no")
 
     # ------------------------------------------------------------------
-    # WSL / advanced section toggles
+    # WSL section toggles
     # ------------------------------------------------------------------
-
-    def _toggle_other_options(self) -> None:
-        self._refresh_advanced_section()
 
     def _toggle_wsl_section(self) -> None:
         self._refresh_wsl_section()
@@ -2223,28 +1485,3 @@ class SettingsPage(QWidget):
             ],
         )
         self._wsl_layout.addWidget(self._wsl_group)
-
-    def _refresh_advanced_section(self) -> None:
-        show_other_options = self._advanced_toggle.isChecked()
-        self._advanced_toggle.setText(
-            self._t("settings.button.hide_other_options")
-            if show_other_options
-            else self._t("settings.button.show_other_options")
-        )
-        self._advanced_toggle.setArrowType(
-            Qt.DownArrow if show_other_options else Qt.RightArrow
-        )
-        self._advanced_toggle.blockSignals(True)
-        self._advanced_toggle.setChecked(show_other_options)
-        self._advanced_toggle.blockSignals(False)
-        self._advanced_container.setVisible(show_other_options)
-        for group_attr in ("_advanced_runtime_group",):
-            group = getattr(self, group_attr)
-            if group is not None:
-                self._advanced_layout.removeWidget(group)
-                group.setParent(None)
-                self._retained_widgets.append(group)
-                setattr(self, group_attr, None)
-
-        if not show_other_options:
-            return

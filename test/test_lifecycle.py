@@ -48,9 +48,14 @@ class _DummySocketConnection:
 
 
 def _load_plugin_module(monkeypatch):
-    """Load the top-level ida_mcp.py plugin with fake IDA modules for unit testing."""
+    """Load the ida_mcp.py IDA plugin with fake IDA modules for unit testing.
+
+    The plugin entry-point lives at ``ide/resources/ida_mcp/ida_mcp.py``.
+    """
     module_name = f"ida_mcp_plugin_test_{time.time_ns()}"
-    plugin_path = os.path.join(PROJECT_ROOT, "ida_mcp.py")
+    plugin_path = os.path.join(
+        PROJECT_ROOT, "ide", "resources", "ida_mcp", "ida_mcp.py"
+    )
     fake_idaapi = types.SimpleNamespace(
         plugin_t=object,
         PLUGIN_KEEP=1,
@@ -737,13 +742,10 @@ class TestLifecycleClose:
         print("\nAttempting to close IDA...")
         result = tool_caller("close_ida", {"save": False})
 
-        if "error" in result:
-            # If no instance is running, that's fine for this test context if we just want to clean up
-            # But if we expected it to run, maybe we should warn
-            print(f"Close IDA result: {result}")
-        else:
-            assert "status" in result
-            assert result["status"] == "ok"
+        print(f"Close IDA result: {result}")
+        assert isinstance(result, dict), f"Expected dict, got {type(result)}: {result}"
+        assert "error" not in result, f"close_ida failed: {result.get('error')}"
+        assert result.get("status") == "ok", f"Unexpected status: {result}"
 
         # Wait a bit for process cleanup
         time.sleep(2)
@@ -755,22 +757,23 @@ class TestRegistryStartup:
     def test_instance_startup_checks_gateway_before_listener_launch(self, monkeypatch):
         """实例启动必须先完成 gateway preflight，再启动 listener。"""
         plugin = _load_plugin_module(monkeypatch)
+        pr = plugin.plugin_runtime
         events = []
 
         monkeypatch.setattr(
-            plugin,
+            pr,
             "_ensure_gateway_ready_for_startup",
             lambda: events.append("gateway") or True,
         )
         monkeypatch.setattr(
-            plugin,
+            pr,
             "_start_instance_server_threads",
             lambda host, port: events.append(("listener", host, port)),
         )
 
-        plugin.start_server_async("127.0.0.1", 10000)
-        if plugin._startup_thread:
-            plugin._startup_thread.join(timeout=1)
+        pr.start_server_async("127.0.0.1", 10000)
+        if pr._startup_thread:
+            pr._startup_thread.join(timeout=1)
 
         assert events == ["gateway", ("listener", "127.0.0.1", 10000)]
 
@@ -779,21 +782,22 @@ class TestRegistryStartup:
     ):
         """gateway 不健康时，不应先把实例 MCP listener 暴露出来。"""
         plugin = _load_plugin_module(monkeypatch)
+        pr = plugin.plugin_runtime
         listener_started = []
 
-        monkeypatch.setattr(plugin, "_ensure_gateway_ready_for_startup", lambda: False)
+        monkeypatch.setattr(pr, "_ensure_gateway_ready_for_startup", lambda: False)
         monkeypatch.setattr(
-            plugin,
+            pr,
             "_start_instance_server_threads",
             lambda host, port: listener_started.append((host, port)),
         )
 
-        plugin.start_server_async("127.0.0.1", 10000)
-        if plugin._startup_thread:
-            plugin._startup_thread.join(timeout=1)
+        pr.start_server_async("127.0.0.1", 10000)
+        if pr._startup_thread:
+            pr._startup_thread.join(timeout=1)
 
         assert listener_started == []
-        assert plugin._server_thread is None
+        assert pr._server_thread is None
 
     def test_build_app_uses_fastmcp_lifespan(self):
         """网关应复用 FastMCP lifespan，以便 Streamable HTTP session manager 正确初始化。"""

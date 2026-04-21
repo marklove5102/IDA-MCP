@@ -82,6 +82,9 @@ class SettingsService:
     def add_mcp_server(self, **kwargs) -> int:
         return self._supervisor_client.add_mcp_server(**kwargs)
 
+    def update_mcp_server(self, server_id: int, **updates: object) -> bool:
+        return self._supervisor_client.update_mcp_server(server_id, **updates)
+
     def remove_mcp_server(self, server_id: int) -> bool:
         return self._supervisor_client.remove_mcp_server(server_id)
 

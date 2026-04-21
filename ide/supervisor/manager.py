@@ -301,12 +301,11 @@ class SupervisorManager:
         return self._shared_db.delete_row("skills", skill_id)
 
     def get_skills_dir(self) -> Path:
-        """Return the ``{plugin_dir}/ida_mcp/skills`` directory path.
+        """Return the skills installation directory under the IDE user data root.
 
-        Creates the directory if it does not exist.
+        Skills are stored in ``{exe_dir}/data/skills/`` so they survive
+        on other platforms) so they survive plugin reinstalls and updates.
         """
-        from shared.paths import ensure_directory
+        from shared.paths import get_skills_dir
 
-        plugin_dir = self.get_ide_config().plugin_dir
-        skills_dir = Path(plugin_dir) / "ida_mcp" / "skills"
-        return ensure_directory(skills_dir)
+        return get_skills_dir()

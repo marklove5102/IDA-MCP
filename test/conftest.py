@@ -1,4 +1,4 @@
-"""pytest 配置和共享 fixtures。
+"""pytest 配置和共享 fixtures。 
 
 测试框架设计：
 1. gateway_internal_available - 检查 gateway 内部 API 是否运行
@@ -18,6 +18,15 @@
     pytest --transport=stdio        # 只运行 stdio 模式
     pytest --transport=http         # 只运行 http 模式
 """
+
+import sys
+import os
+
+# 确保 ida_mcp 包可导入 — 包位于 ide/resources/ida_mcp/ida_mcp/
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_pkg_root = os.path.join(_repo_root, "ide", "resources", "ida_mcp")
+if _pkg_root not in sys.path:
+    sys.path.insert(0, _pkg_root)
 
 import pytest
 import urllib.request
@@ -154,6 +163,12 @@ _API_CATEGORIES = {
 _PROXY_ONLY_TOOLS = {
     "open_in_ida",
 }
+
+# 这些工具不接受 port/timeout 参数（gateway-side 工具，无需指定目标实例）。
+_NO_PORT_INJECTION_TOOLS = {
+    "check_connection",
+    "list_instances",
+} | _PROXY_ONLY_TOOLS
 
 
 def _call_proxy_only_tool_locally(tool_name: str, params: dict) -> Any:
@@ -410,7 +425,7 @@ def call_tool_http(tool_name: str, params: dict, port: Optional[int] = None) -> 
             url = f"http://{HTTP_PROXY_HOST}:{HTTP_PROXY_PORT}{HTTP_PROXY_PATH}"
             async with Client(url, timeout=30) as client:
                 call_params = dict(params)
-                if port and tool_name not in _PROXY_ONLY_TOOLS:
+                if port and tool_name not in _NO_PORT_INJECTION_TOOLS:
                     call_params.setdefault("port", port)
 
                 resp = await client.call_tool(tool_name, call_params)

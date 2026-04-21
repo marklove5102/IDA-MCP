@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -18,9 +17,6 @@ from supervisor.models import (
     InstallationCheck,
     SupervisorSnapshot,
 )
-
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 def _app() -> QApplication:
@@ -64,6 +60,9 @@ class _StubSupervisorClient(SupervisorClient):
             missing_requirements=["pytest"],
         )
 
+    def get_model_providers(self) -> list:
+        return []
+
     def get_mcp_servers(self) -> list:
         return []
 
@@ -71,7 +70,7 @@ class _StubSupervisorClient(SupervisorClient):
         return []
 
     def get_skills_dir(self):
-        return Path("E:/plugins/ida_mcp/skills")
+        return Path("D:/tools/ida-mcp-ide/data/skills")
 
     def get_snapshot(self, *, log=None) -> SupervisorSnapshot:
         return self._build_snapshot()

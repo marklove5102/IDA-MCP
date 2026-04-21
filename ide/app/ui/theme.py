@@ -201,16 +201,6 @@ class Theme:
         """Colour used for inactive sidebar icons."""
         return self._palette.text_secondary
 
-    @property
-    def error_color(self) -> str:
-        """Colour used for inline validation errors."""
-        return self._palette.status_error
-
-    @property
-    def error_label_qss(self) -> str:
-        """Ready-made QSS for validation error labels."""
-        return f"color: {self._palette.status_error}; font-size: 12px;"
-
     # ------------------------------------------------------------------ #
     # Stylesheet generation
     # ------------------------------------------------------------------ #
@@ -331,13 +321,6 @@ class Theme:
         }}
 
         /* ---- Settings page typography ---- */
-        QLabel#settingsTitle {{
-            color: {c.text_primary};
-            font-size: 15pt;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-            padding-bottom: 4px;
-        }}
         QFrame#settingsGroup {{
             background: {c.panel_bg};
             border: 1px solid {c.border_light};
@@ -799,8 +782,9 @@ class Theme:
             max-height: 1px;
         }}
 
-        /* ---- Model provider dialog ---- */
-        QDialog#modelProviderDialog {{
+        /* ---- Model provider / MCP server dialog ---- */
+        QDialog#modelProviderDialog,
+        QDialog#mcpServerDialog {{
             background: {c.panel_bg};
         }}
         QLabel#dialogSectionTitle {{

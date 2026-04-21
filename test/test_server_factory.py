@@ -5,7 +5,7 @@ import types
 
 from ida_mcp import server_factory
 from ida_mcp.proxy import register_tools
-from ida_mcp.rpc import ToolSpec, get_tool_specs
+from ida_mcp.rpc import ToolSpec, get_tool_specs, ensure_api_modules_loaded
 
 
 class _FakeProxyServer:
@@ -101,7 +101,7 @@ def test_proxy_registration_matches_backend_registry(monkeypatch):
     server = _FakeProxyServer()
 
     register_tools.register_tools(server)
-    server_factory._ensure_api_modules_loaded()
+    ensure_api_modules_loaded()
 
     expected = {
         name
@@ -124,7 +124,7 @@ def test_proxy_skips_unsafe_backend_tools_when_disabled(monkeypatch):
 
 
 def test_tool_metadata_tracks_unsafe_and_execution_mode():
-    server_factory._ensure_api_modules_loaded()
+    ensure_api_modules_loaded()
 
     py_eval_spec = get_tool_specs()["py_eval"]
     dbg_regs_spec = get_tool_specs()["dbg_regs"]
@@ -137,7 +137,7 @@ def test_tool_metadata_tracks_unsafe_and_execution_mode():
 def test_create_mcp_server_logs_failed_resource_registration(monkeypatch, capsys):
     fake_fastmcp_module = types.SimpleNamespace(FastMCP=_FakeFastMCP)
     monkeypatch.setitem(sys.modules, "fastmcp", fake_fastmcp_module)
-    monkeypatch.setattr(server_factory, "_ensure_api_modules_loaded", lambda: None)
+    monkeypatch.setattr(server_factory, "ensure_api_modules_loaded", lambda: None)
     monkeypatch.setattr(
         server_factory,
         "get_tool_specs",

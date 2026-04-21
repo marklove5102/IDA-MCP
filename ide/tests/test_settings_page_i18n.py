@@ -1,15 +1,11 @@
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QTableWidget
 
 from app.services.settings_service import SettingsSnapshot
 from app.ui.settings.page import SettingsPage
 from supervisor.models import IdaMcpConfig, IdeConfig, InstallationCheck
-
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 def _app() -> QApplication:
@@ -54,14 +50,35 @@ class _StubSettingsService:
             missing_requirements=["pytest"],
         )
 
+    def get_model_providers(self) -> list:
+        return []
+
+    def add_model_provider(self, **kwargs):
+        pass
+
+    def update_model_provider(self, provider_id, **updates):
+        pass
+
+    def remove_model_provider(self, provider_id):
+        pass
+
     def get_mcp_servers(self) -> list:
         return []
+
+    def add_mcp_server(self, **kwargs):
+        pass
+
+    def update_mcp_server(self, server_id, **updates):
+        pass
+
+    def remove_mcp_server(self, server_id):
+        pass
 
     def get_skills(self) -> list:
         return []
 
     def get_skills_dir(self):
-        return Path("E:/plugins/ida_mcp/skills")
+        return Path("D:/tools/ida-mcp-ide/data/skills")
 
     def update_skill(self, skill_id, **updates):
         pass
@@ -140,8 +157,6 @@ def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() 
     QApplication.processEvents()
     assert page._wsl_container.isHidden() is False
 
-    page._advanced_toggle.click()
-    QApplication.processEvents()
     page._save_settings(show_message=False)
     QApplication.processEvents()
 

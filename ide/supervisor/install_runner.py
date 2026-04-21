@@ -61,7 +61,11 @@ def _pip_install_streaming(
 
 
 def _copy_plugin_files(resources_dir: Path, plugins_dir: Path) -> tuple[bool, str]:
-    """Copy ida_mcp.py and ida_mcp/ from resources to plugins dir."""
+    """Copy ida_mcp.py and ida_mcp/ from resources to plugins dir.
+
+    Removes any existing ida_mcp.py and ida_mcp/ in the target before copying
+    to ensure stale files from previous installations are cleaned up.
+    """
     source_plugin_file = resources_dir / "ida_mcp.py"
     source_plugin_dir = resources_dir / "ida_mcp"
 
@@ -72,11 +76,21 @@ def _copy_plugin_files(resources_dir: Path, plugins_dir: Path) -> tuple[bool, st
 
     try:
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_plugin_file, plugins_dir / source_plugin_file.name)
+
+        # Remove old installation to prevent stale files from accumulating.
+        target_plugin_file = plugins_dir / source_plugin_file.name
+        target_plugin_dir = plugins_dir / source_plugin_dir.name
+
+        if target_plugin_file.exists():
+            target_plugin_file.unlink()
+        if target_plugin_dir.is_dir():
+            shutil.rmtree(target_plugin_dir)
+
+        shutil.copy2(source_plugin_file, target_plugin_file)
         shutil.copytree(
             source_plugin_dir,
-            plugins_dir / source_plugin_dir.name,
-            dirs_exist_ok=True,
+            target_plugin_dir,
+            dirs_exist_ok=False,
             ignore=shutil.ignore_patterns(
                 "__pycache__", "*.pyc", "*.pyo", ".pytest_cache"
             ),

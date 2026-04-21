@@ -396,7 +396,7 @@ class SkillEntry:
     """A skill registered for the chat agent.
 
     Skills can be installed from zip packages that are extracted into
-    ``{plugin_dir}/ida_mcp/skills/{name}/``.
+    ``{ide_data_dir}/skills/{name}/`` (typically ``{exe_dir}/data/skills/``).
     """
 
     id: int | None = None
@@ -405,7 +405,7 @@ class SkillEntry:
     enabled: bool = True
     version: str = ""          # skill version string, e.g. "1.0.0"
     file_path: str = ""        # original zip file name
-    install_dir: str = ""      # relative path under plugin_dir/ida_mcp/skills/
+    install_dir: str = ""      # relative path under the skills directory
     installed_at: str = ""     # ISO timestamp of installation
 
     def to_dict(self) -> dict[str, Any]:

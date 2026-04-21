@@ -42,3 +42,6 @@ include = ["app*", "supervisor*", "shared*", "bootstrap*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "environment: tests that depend on the host Python environment",
+]

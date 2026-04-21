@@ -35,12 +35,6 @@ IS_LINUX: bool = sys.platform == "linux"
 IS_MACOS: bool = sys.platform == "darwin"
 """True on macOS."""
 
-PATH_SEP: str = os.sep
-"""The separator used by :func:`display_path` for display output.
-
-``\\`` on Windows, ``/`` on POSIX — always the OS-native separator.
-"""
-
 # ---------------------------------------------------------------------------
 # Display-path helper
 # ---------------------------------------------------------------------------
@@ -65,13 +59,6 @@ def display_path(path: _PathType) -> str:
     if IS_WINDOWS and "/" in text:
         text = text.replace("/", "\\")
     return text
-
-
-def display_path_or_none(path: _PathType) -> Optional[str]:
-    """Like :func:`display_path` but returns ``None`` when *path* is falsy."""
-    if not path:
-        return None
-    return display_path(path)
 
 
 # ---------------------------------------------------------------------------

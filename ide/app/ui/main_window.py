@@ -166,11 +166,6 @@ class MainWindow(QMainWindow):
 
         return Theme.light().sidebar_icon_color
 
-    def _current_theme_mode(self):
-        from app.ui.theme import ThemeMode
-
-        return ThemeMode.LIGHT
-
     def _refresh_sidebar_icons(self) -> None:
         color = self._sidebar_icon_color()
         icons = make_sidebar_icons(color)
@@ -503,3 +498,9 @@ class MainWindow(QMainWindow):
     def _apply_theme(self) -> None:
         self.setStyleSheet(Theme.light().stylesheet())
         self._refresh_sidebar_icons()
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        """Ensure child pages clean up background workers."""
+        if hasattr(self, "_settings_view") and self._settings_view is not None:
+            self._settings_view.cleanup()
+        super().closeEvent(event)

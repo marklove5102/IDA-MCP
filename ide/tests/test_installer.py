@@ -10,6 +10,7 @@ from supervisor.platform_detector import (
 )
 
 
+@pytest.mark.environment
 def test_check_installation_reports_missing_config(tmp_path: Path) -> None:
     plugin_dir = tmp_path / "plugin"
     plugin_dir.mkdir()
@@ -35,6 +36,7 @@ def test_check_installation_reports_missing_config(tmp_path: Path) -> None:
     assert result.missing_requirements == []
 
 
+@pytest.mark.environment
 def test_check_installation_reports_missing_requirements(tmp_path: Path) -> None:
     plugin_dir = tmp_path / "plugin"
     plugin_dir.mkdir()
@@ -55,6 +57,7 @@ def test_check_installation_reports_missing_requirements(tmp_path: Path) -> None
     assert result.missing_requirements == ["definitely-not-installed-package-xyz==1.0"]
 
 
+@pytest.mark.environment
 def test_check_installation_uses_repo_root_requirements(tmp_path: Path) -> None:
     plugin_dir = tmp_path / "plugin"
     plugin_dir.mkdir()
@@ -223,7 +226,6 @@ def test_find_ida_paths_macos_discovers_bundles(monkeypatch) -> None:
         pytest.skip("macOS app bundle path resolution not testable on Windows")
 
     installer = EnvironmentInstaller()
-    from pathlib import Path
 
     bundle = Path("/Applications/IDA Professional 9.0.app")
     expected = str(bundle / "Contents" / "MacOS" / "ida64")

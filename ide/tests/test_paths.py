@@ -1,7 +1,6 @@
-from pathlib import Path
-
 from shared.paths import (
     get_build_root,
+    get_data_root,
     get_ida_mcp_resources_dir,
     get_ide_user_config_root,
     get_logs_root,
@@ -9,6 +8,7 @@ from shared.paths import (
     get_packaging_root,
     get_project_root,
     get_resources_root,
+    get_skills_dir,
     get_workspaces_root,
 )
 
@@ -35,9 +35,14 @@ def test_ida_mcp_resources_dir_contains_required_files() -> None:
     assert (resources_dir / "ida_mcp" / "command.py").exists()
 
 
-def test_ide_user_config_root_is_nested_under_app_config_root(monkeypatch) -> None:
-    appdata = Path("C:/Users/test/AppData/Roaming")
-    monkeypatch.setenv("APPDATA", str(appdata))
-    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+def test_data_root_is_inside_project_root() -> None:
+    project_root = get_project_root()
+    assert get_data_root() == project_root / "data"
 
-    assert get_ide_user_config_root() == appdata / "ida-mcp" / "ide"
+
+def test_ide_user_config_root_returns_data_root() -> None:
+    assert get_ide_user_config_root() == get_data_root()
+
+
+def test_skills_dir_is_inside_data_root() -> None:
+    assert get_skills_dir() == get_data_root() / "skills"
