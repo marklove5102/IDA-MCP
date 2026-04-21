@@ -29,9 +29,8 @@ except ImportError:
 
 from . import compat  # IDA 8.x/9.x 兼容层
 
-# 检测 IDA 版本
-IDA_VERSION = getattr(idaapi, 'IDA_SDK_VERSION', 0)
-IDA9_OR_LATER = IDA_VERSION >= 900
+# 使用兼容层的版本检测
+IDA9_OR_LATER = compat.IDA9_OR_LATER
 
 PT_SIL = getattr(ida_typeinf, 'PT_SIL', 1) if ida_typeinf is not None else 1
 
