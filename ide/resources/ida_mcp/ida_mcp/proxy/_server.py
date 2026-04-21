@@ -37,7 +37,7 @@ server = FastMCP(
 核心管理:
 - check_connection: 检查连接状态
 - list_instances: 列出所有 IDA 实例
-- select_instance: 选择要操作的实例
+- select_instance: 无状态选择推荐实例端口
 
 生命周期工具:
 - open_in_ida: 启动 IDA 并打开指定文件

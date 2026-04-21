@@ -190,11 +190,6 @@ def get_gateway_internal_url() -> str:
 # ============================================================================
 
 
-def get_http_host() -> str:
-    """获取 HTTP 网关监听地址。兼容旧调用。"""
-    return get_http_bind_host()
-
-
 def get_http_port() -> int:
     """获取 HTTP 代理监听端口。"""
     config = load_config()

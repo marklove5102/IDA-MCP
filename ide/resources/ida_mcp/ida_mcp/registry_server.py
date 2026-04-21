@@ -68,6 +68,7 @@ INSTANCE_HEALTH_ERROR = "error"
 INSTANCE_FAILURE_QUARANTINE_SECONDS = 60.0
 INSTANCE_FAILURE_THRESHOLD = 2
 MAIN_THREAD_STALE_SECONDS = 30.0
+PENDING_INSTANCE_TTL_SECONDS = 180.0  # Reap "starting" instances after 3 min
 
 
 def _short(v: Any) -> str:
@@ -102,6 +103,36 @@ def _find_instance_index_by_pid(pid: Any) -> Optional[int]:
         if entry.get("pid") == pid:
             return idx
     return None
+
+
+def _reap_stale_pending_instances() -> int:
+    """Remove pending ("starting") instances whose TTL has expired.
+
+    An instance is considered stale when it has been in a non-ready state
+    (no successful health check) for longer than ``PENDING_INSTANCE_TTL_SECONDS``.
+
+    Returns the number of reaped entries.  Must be called while ``_lock`` is held.
+    """
+    now = _now()
+    deadline = now - PENDING_INSTANCE_TTL_SECONDS
+    stale: List[int] = []
+    for idx, entry in enumerate(_instances):
+        state = str(entry.get("effective_state") or entry.get("health") or "")
+        if state in {"ready", INSTANCE_HEALTH_HEALTHY}:
+            continue
+        started = float(entry.get("started") or entry.get("registered_at") or now)
+        if started < deadline:
+            stale.append(idx)
+    # Remove in reverse order to keep indices valid.
+    for idx in reversed(stale):
+        removed = _instances.pop(idx)
+        _debug_log(
+            "REAP_STALE",
+            pid=removed.get("pid"),
+            port=removed.get("port"),
+            state=removed.get("effective_state") or removed.get("health"),
+        )
+    return len(stale)
 
 
 def _instance_sort_key(entry: Dict[str, Any]) -> tuple[int, int, float, int]:
@@ -306,12 +337,8 @@ async def _healthz(_: Request) -> JSONResponse:
 
 async def _instances_handler(_: Request) -> JSONResponse:
     with _lock:
+        _reap_stale_pending_instances()
         return JSONResponse([_public_instance_record(entry) for entry in _instances])
-
-
-async def _current_instance_handler(_: Request) -> JSONResponse:
-    with _lock:
-        return JSONResponse({"port": _current_instance_port})
 
 
 async def _debug_get(_: Request) -> JSONResponse:
@@ -429,30 +456,6 @@ async def _deregister_handler(request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
-async def _select_instance_handler(request: Request) -> JSONResponse:
-    global _current_instance_port
-    payload = await request.json()
-    port = payload.get("port")
-    with _lock:
-        if port is None:
-            candidates = [
-                entry for entry in _instances if _auto_routable_instance(entry)
-            ]
-            if not candidates:
-                return JSONResponse(
-                    {"error": "No ready instances to select from"}, status_code=404
-                )
-            sorted_instances = sorted(candidates, key=_instance_sort_key)
-            _current_instance_port = sorted_instances[0].get("port")
-        else:
-            if not any(e.get("port") == port for e in _instances):
-                return JSONResponse(
-                    {"error": f"Instance with port {port} not found"}, status_code=404
-                )
-            _current_instance_port = port
-    return JSONResponse({"status": "ok", "selected_port": _current_instance_port})
-
-
 async def _call_handler(request: Request) -> JSONResponse:
     payload = await request.json()
     target_pid = payload.get("pid")
@@ -463,6 +466,7 @@ async def _call_handler(request: Request) -> JSONResponse:
         return JSONResponse({"error": "missing tool"}, status_code=400)
 
     with _lock:
+        _reap_stale_pending_instances()
         target = None
         if target_pid is not None:
             for entry in _instances:
@@ -573,7 +577,6 @@ def _build_internal_app() -> Starlette:
         routes=[
             Route("/healthz", _healthz, methods=["GET"]),
             Route("/instances", _instances_handler, methods=["GET"]),
-            Route("/current_instance", _current_instance_handler, methods=["GET"]),
             Route("/debug", _debug_get, methods=["GET"]),
             Route("/debug", _debug_post, methods=["POST"]),
             Route("/proxy_status", _proxy_status_handler, methods=["GET"]),
@@ -582,7 +585,6 @@ def _build_internal_app() -> Starlette:
             Route("/register", _register_handler, methods=["POST"]),
             Route("/update_instance", _update_instance_handler, methods=["POST"]),
             Route("/deregister", _deregister_handler, methods=["POST"]),
-            Route("/select_instance", _select_instance_handler, methods=["POST"]),
             Route("/call", _call_handler, methods=["POST"]),
         ]
     )

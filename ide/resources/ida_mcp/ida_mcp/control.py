@@ -122,7 +122,7 @@ def call_tool(
     port: Optional[int] = None,
     timeout: Optional[int] = None,
 ) -> dict[str, Any]:
-    from ._state import forward
+    from .proxy._state import forward
 
     raw = forward(tool_name, params=params, port=port, timeout=timeout)
     if isinstance(raw, dict) and "error" in raw:

@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QSplitter,
     QStatusBar,
     QStackedWidget,
@@ -67,7 +66,7 @@ class MainWindow(QMainWindow):
 
         _icon_path = Path(__file__).resolve().parents[2] / "resources" / "Sarma.png"
         if _icon_path.exists():
-            from PySide6.QtGui import QIcon, QPixmap
+            from PySide6.QtGui import QIcon
 
             self.setWindowIcon(QIcon(str(_icon_path)))
 

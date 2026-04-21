@@ -44,7 +44,7 @@ def _default_language() -> str:
     return "en"
 
 
-def _default_ida_plugin_dir() -> str:
+def default_ida_plugin_dir() -> str:
     """Return the default IDA global plugins directory.
 
     Windows: %APPDATA%\\Hex-Rays\\IDA Pro\\plugins
@@ -56,6 +56,10 @@ def _default_ida_plugin_dir() -> str:
         )
         return str(Path(appdata) / "Hex-Rays" / "IDA Pro" / "plugins")
     return str(Path.home() / ".idapro" / "plugins")
+
+
+# Backward-compatible alias; prefer ``default_ida_plugin_dir()``.
+_default_ida_plugin_dir = default_ida_plugin_dir
 
 
 @dataclass(slots=True)

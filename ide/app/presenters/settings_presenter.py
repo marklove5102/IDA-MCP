@@ -23,7 +23,6 @@ from supervisor.models import (
 _IDA_MCP_FIELD_ALIASES: dict[str, str] = {
     "request_timeout": "ida_request_timeout",
 }
-_IDA_MCP_FIELD_ALIASES_REV = {v: k for k, v in _IDA_MCP_FIELD_ALIASES.items()}
 
 
 @dataclass(slots=True)
@@ -55,12 +54,6 @@ class SettingsFormState:
     server_name: str
     ida_request_timeout: int
     debug: bool
-
-    @classmethod
-    def _ida_mcp_field_names(cls) -> set[str]:
-        """Form field names that belong to IdaMcpConfig."""
-        ida_names = IdaMcpConfig.field_names()
-        return {(_IDA_MCP_FIELD_ALIASES.get(n, n)) for n in ida_names}
 
     @classmethod
     def from_flat_dict(cls, data: dict[str, Any]) -> SettingsFormState:
@@ -209,9 +202,9 @@ def _clean_plugin_dir(value: str) -> str:
     cleaned = value.strip()
     if cleaned:
         return cleaned
-    from supervisor.models import _default_ida_plugin_dir
+    from supervisor.models import default_ida_plugin_dir
 
-    return _default_ida_plugin_dir()
+    return default_ida_plugin_dir()
 
 
 def _format_requirement_summary(installation: InstallationCheck) -> str:

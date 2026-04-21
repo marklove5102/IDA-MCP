@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from PySide6.QtCore import Qt, Signal
 
@@ -1422,7 +1423,7 @@ class SettingsPage(QWidget):
             start,
         )
         if selected:
-            widget.setText(selected)
+            widget.setText(os.path.normpath(selected))
 
     def _browse_directory(self, widget: QLineEdit) -> None:
         start = widget.text().strip() or ""
@@ -1432,7 +1433,7 @@ class SettingsPage(QWidget):
             start,
         )
         if selected:
-            widget.setText(selected)
+            widget.setText(os.path.normpath(selected))
 
     def _bool_text(self, value: bool) -> str:
         return self._t("settings.bool.yes") if value else self._t("settings.bool.no")

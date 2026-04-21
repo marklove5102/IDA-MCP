@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from shared.runtime import get_packaging_root as get_runtime_packaging_root
