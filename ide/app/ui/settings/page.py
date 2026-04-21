@@ -819,8 +819,7 @@ class SettingsPage(QWidget):
         )
         self._upgrade_notes = QTextEdit()
         self._upgrade_notes.setReadOnly(True)
-        self._save_hint_label = QLabel()
-        self._save_hint_label.setObjectName("settingsHint")
+        self._save_hint_labels: list[QLabel] = []
 
         self._install_python_path = QLineEdit()
         self._install_python_path.setReadOnly(True)
@@ -924,25 +923,20 @@ class SettingsPage(QWidget):
 
     def _build_ui(self) -> None:
         current_row = self._category_list.currentRow()
+        self._save_hint_labels.clear()
         old_layout = self.layout()
         if old_layout is None:
             root_layout = QVBoxLayout(self)
             root_layout.setContentsMargins(0, 0, 0, 0)
             root_layout.setSpacing(10)
 
-            header = QWidget()
-            header_layout = QVBoxLayout(header)
-            header_layout.setContentsMargins(0, 0, 0, 0)
-            header_layout.setSpacing(6)
-
             body = QWidget()
             body_layout = QHBoxLayout(body)
             body_layout.setContentsMargins(0, 0, 0, 0)
-            body_layout.setSpacing(12)
+            body_layout.setSpacing(0)
             body_layout.addWidget(self._category_list)
             body_layout.addWidget(self._stack, 1)
 
-            root_layout.addWidget(header)
             root_layout.addWidget(body, 1)
 
         self._category_list.clear()
@@ -961,7 +955,7 @@ class SettingsPage(QWidget):
             if font.pointSize() <= 0:
                 ps = self.font().pointSize()
                 font.setPointSize(ps if ps > 0 else 10)
-            font.setBold(True)
+            font.setBold(False)
             item.setFont(font)
             self._category_list.addItem(item)
         if not self._category_row_connected:
@@ -988,8 +982,8 @@ class SettingsPage(QWidget):
     def _build_config_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
 
         layout.addWidget(
             self._build_config_group(
@@ -1130,8 +1124,8 @@ class SettingsPage(QWidget):
     def _build_install_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
 
         layout.addWidget(
             self._build_config_group(
@@ -1165,7 +1159,13 @@ class SettingsPage(QWidget):
                 ],
             )
         )
-        layout.addWidget(self._install_notes)
+        layout.addWidget(
+            self._build_config_group(
+                self._t("settings.category.install"),
+                self._t("settings.install.placeholder"),
+                [self._install_notes],
+            )
+        )
 
         action_bar = QWidget()
         action_bar_layout = QHBoxLayout(action_bar)
@@ -1188,7 +1188,15 @@ class SettingsPage(QWidget):
         self._upgrade_notes.setPlainText(self._t("settings.upgrade.placeholder"))
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.addWidget(self._upgrade_notes)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.addWidget(
+            self._build_config_group(
+                self._t("settings.category.upgrade"),
+                self._t("settings.upgrade.placeholder"),
+                [self._upgrade_notes],
+            )
+        )
         layout.addStretch(1)
         return widget
 
@@ -1199,8 +1207,8 @@ class SettingsPage(QWidget):
     def _build_model_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
 
         layout.addWidget(
             self._build_config_group(
@@ -1399,8 +1407,8 @@ class SettingsPage(QWidget):
     def _build_mcp_settings_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
 
         layout.addWidget(
             self._build_config_group(
@@ -1632,8 +1640,8 @@ class SettingsPage(QWidget):
     def _build_skills_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
 
         layout.addWidget(
             self._build_config_group(
@@ -1916,7 +1924,7 @@ class SettingsPage(QWidget):
         self._ide_request_timeout.setValue(form_state.ide_request_timeout)
         self._install_python_path.setText(effective_install_python_path(snapshot))
         self._install_plugin_dir.setText(form_state.plugin_dir)
-        self._save_hint_label.setText(self._t("settings.save_hint"))
+        self._set_all_save_hints(self._t("settings.save_hint"))
         self._install_notes.setPlaceholderText(self._t("settings.install.placeholder"))
 
         # Defer installation check to a background worker — never block UI.
@@ -1955,7 +1963,7 @@ class SettingsPage(QWidget):
             ida_mcp_updates=ida_mcp_updates,
         )
         self._apply_snapshot(snapshot)
-        self._save_hint_label.setText(self._t("settings.saved"))
+        self._set_all_save_hints(self._t("settings.saved"))
         if show_message:
             QMessageBox.information(
                 self,
@@ -2018,8 +2026,8 @@ class SettingsPage(QWidget):
         container = QFrame()
         container.setObjectName("settingsGroup")
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
 
         title_label = QLabel(title)
         title_label.setObjectName("settingsGroupTitle")
@@ -2029,18 +2037,25 @@ class SettingsPage(QWidget):
 
         layout.addWidget(title_label)
         layout.addWidget(description_label)
+        layout.addSpacing(4)
         for row in rows:
             layout.addWidget(row)
         return container
 
+    def _set_all_save_hints(self, text: str) -> None:
+        for label in self._save_hint_labels:
+            label.setText(text)
+
     def _build_save_bar(self, *, show_hint: bool) -> QWidget:
         save_bar = QWidget()
         save_bar_layout = QHBoxLayout(save_bar)
-        save_bar_layout.setContentsMargins(0, 0, 0, 0)
+        save_bar_layout.setContentsMargins(0, 8, 0, 0)
         save_bar_layout.setSpacing(8)
         if show_hint:
-            self._save_hint_label.setText(self._t("settings.save_hint"))
-            save_bar_layout.addWidget(self._save_hint_label, 1)
+            hint = QLabel(self._t("settings.save_hint"))
+            hint.setObjectName("settingsHint")
+            save_bar_layout.addWidget(hint, 1)
+            self._save_hint_labels.append(hint)
         else:
             save_bar_layout.addStretch(1)
         save_button = QPushButton(self._t("settings.save"))
@@ -2056,7 +2071,7 @@ class SettingsPage(QWidget):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(2)
 
         label_widget = QLabel(label)
         label_widget.setObjectName("settingsFieldLabel")
@@ -2078,8 +2093,8 @@ class SettingsPage(QWidget):
         checkbox.setText(label)
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setSpacing(2)
 
         description_widget = QLabel(description)
         description_widget.setWordWrap(True)
@@ -2111,7 +2126,7 @@ class SettingsPage(QWidget):
         self._language = language
         self._i18n.set_language(language)
         self._build_ui()
-        self._save_hint_label.setText(self._t("settings.save_hint"))
+        self._set_all_save_hints(self._t("settings.save_hint"))
         self._install_notes.setPlaceholderText(self._t("settings.install.placeholder"))
         self.language_changed.emit(language)
 

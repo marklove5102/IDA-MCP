@@ -340,22 +340,20 @@ class Theme:
         }}
         QFrame#settingsGroup {{
             background: {c.panel_bg};
-            border: none;
-            border-top: 1px solid {c.border_light};
-            border-radius: 0;
-            padding: 4px;
+            border: 1px solid {c.border_light};
+            border-radius: 8px;
+            padding: 16px;
         }}
         QLabel#settingsGroupTitle {{
             color: {c.text_primary};
             font-size: 10pt;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0;
         }}
         QLabel#settingsGroupDescription {{
             color: {c.text_secondary};
             font-size: 9pt;
-            line-height: 1.4;
+            padding-bottom: 4px;
         }}
         QLabel#settingsFieldLabel {{
             color: {c.text_primary};
@@ -381,7 +379,7 @@ class Theme:
             background: {c.input_bg};
             color: {c.text_primary};
             border: 1px solid {c.border};
-            border-radius: 0;
+            border-radius: 6px;
             padding: 6px 8px;
             selection-background-color: {c.accent};
             selection-color: {c.accent_text};
@@ -461,7 +459,7 @@ class Theme:
             background: {c.button_bg};
             color: {c.button_text};
             border: 1px solid {c.button_border};
-            border-radius: 0;
+            border-radius: 6px;
             padding: 8px 16px;
             font-weight: 500;
             font-size: 10pt;
@@ -548,14 +546,15 @@ class Theme:
         }}
         QListWidget#settingsCategoryList::item {{
             padding: 10px 12px;
-            border-radius: 0;
-            margin: 2px 4px;
+            border-radius: 6px;
+            margin: 1px 4px;
             font-weight: 500;
             font-size: 10pt;
         }}
         QListWidget#settingsCategoryList::item:selected {{
-            background: {c.accent};
-            color: {c.accent_text};
+            background: {c.accent_subtle};
+            color: {c.accent};
+            font-weight: 600;
         }}
         QListWidget#settingsCategoryList::item:hover:!selected {{
             background: {c.hover_bg};
@@ -583,12 +582,12 @@ class Theme:
         /* ---- Checkbox ---- */
         QCheckBox {{
             color: {c.text_primary};
-            font-size: 10pt;
+            font-size: 9pt;
             spacing: 8px;
         }}
         QCheckBox::indicator {{
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             border: 2px solid {c.border};
             border-radius: 4px;
             background: {c.input_bg};

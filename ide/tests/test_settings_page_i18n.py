@@ -110,7 +110,7 @@ def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() 
     assert category_list.item(4).text() == "MCP"
     assert category_list.item(5).text() == "Skills"
     assert stack.count() == 6
-    assert page._save_hint_label.text().startswith("Save writes IDE config")
+    assert page._save_hint_labels[-1].text().startswith("Save writes IDE config")
     assert page._requirements_path.text().endswith("requirements.txt")
     assert isinstance(page._requirements_table, QTableWidget)
     assert page._requirements_table.rowCount() == 2
