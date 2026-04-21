@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable
 
 from shared.database import DatabaseStore
@@ -225,9 +226,36 @@ class SupervisorManager:
         rows = self._shared_db.load_rows("mcp_servers")
         return [McpServerEntry.from_dict(r) for r in rows]
 
-    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
+    def add_mcp_server(
+        self,
+        name: str = "",
+        transport: str = "stdio",
+        *,
+        enabled: bool = True,
+        command: str = "",
+        args: str = "",
+        env: str = "",
+        cwd: str = "",
+        encoding: str = "utf-8",
+        url: str = "",
+        headers: str = "",
+        timeout: float = 30.0,
+        sse_read_timeout: float = 300.0,
+    ) -> int:
         return self._shared_db.insert_row(
-            "mcp_servers", name=name, url=url, enabled=enabled
+            "mcp_servers",
+            name=name,
+            transport=transport,
+            enabled=enabled,
+            command=command,
+            args=args,
+            env=env,
+            cwd=cwd,
+            encoding=encoding,
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            sse_read_timeout=sse_read_timeout,
         )
 
     def update_mcp_server(self, server_id: int, **updates: object) -> bool:
@@ -245,10 +273,25 @@ class SupervisorManager:
         return [SkillEntry.from_dict(r) for r in rows]
 
     def add_skill(
-        self, name: str, description: str = "", *, enabled: bool = True
+        self,
+        name: str,
+        description: str = "",
+        *,
+        enabled: bool = True,
+        version: str = "",
+        file_path: str = "",
+        install_dir: str = "",
+        installed_at: str = "",
     ) -> int:
         return self._shared_db.insert_row(
-            "skills", name=name, description=description, enabled=enabled
+            "skills",
+            name=name,
+            description=description,
+            enabled=enabled,
+            version=version,
+            file_path=file_path,
+            install_dir=install_dir,
+            installed_at=installed_at,
         )
 
     def update_skill(self, skill_id: int, **updates: object) -> bool:
@@ -256,3 +299,14 @@ class SupervisorManager:
 
     def remove_skill(self, skill_id: int) -> bool:
         return self._shared_db.delete_row("skills", skill_id)
+
+    def get_skills_dir(self) -> Path:
+        """Return the ``{plugin_dir}/ida_mcp/skills`` directory path.
+
+        Creates the directory if it does not exist.
+        """
+        from shared.paths import ensure_directory
+
+        plugin_dir = self.get_ide_config().plugin_dir
+        skills_dir = Path(plugin_dir) / "ida_mcp" / "skills"
+        return ensure_directory(skills_dir)

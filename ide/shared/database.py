@@ -19,7 +19,7 @@ from shared.paths import ensure_directory, get_ide_user_config_root
 
 DATABASE_FILENAME = "ide.db"
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 4
 
 
 def _coerce(value: str, target_type: type) -> Any:
@@ -67,17 +67,30 @@ CREATE TABLE IF NOT EXISTS model_providers (
 );
 
 CREATE TABLE IF NOT EXISTS mcp_servers (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    name    TEXT    NOT NULL DEFAULT '',
-    url     TEXT    NOT NULL DEFAULT '',
-    enabled INTEGER NOT NULL DEFAULT 1
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    name      TEXT    NOT NULL DEFAULT '',
+    transport TEXT    NOT NULL DEFAULT 'stdio',
+    enabled   INTEGER NOT NULL DEFAULT 1,
+    command   TEXT    NOT NULL DEFAULT '',
+    args      TEXT    NOT NULL DEFAULT '',
+    env       TEXT    NOT NULL DEFAULT '',
+    cwd       TEXT    NOT NULL DEFAULT '',
+    url       TEXT    NOT NULL DEFAULT '',
+    headers   TEXT    NOT NULL DEFAULT '',
+    timeout   REAL    NOT NULL DEFAULT 30.0,
+    encoding          TEXT    NOT NULL DEFAULT 'utf-8',
+    sse_read_timeout  REAL    NOT NULL DEFAULT 300.0
 );
 
 CREATE TABLE IF NOT EXISTS skills (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL DEFAULT '',
     description TEXT    NOT NULL DEFAULT '',
-    enabled     INTEGER NOT NULL DEFAULT 1
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    version     TEXT    NOT NULL DEFAULT '',
+    file_path   TEXT    NOT NULL DEFAULT '',
+    install_dir TEXT    NOT NULL DEFAULT '',
+    installed_at TEXT   NOT NULL DEFAULT ''
 );
 """
 
@@ -220,15 +233,60 @@ class DatabaseStore:
     # ------------------------------------------------------------------
 
     def _init_db(self) -> None:
-        """Create tables and set schema version if needed."""
+        """Create tables and run migrations if needed."""
         ensure_directory(self._db_path.parent)
         with self._connect() as conn:
             conn.executescript(_CREATE_TABLES_SQL)
-            conn.execute(
-                "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, ?)",
-                ("schema_version", str(_SCHEMA_VERSION)),
-            )
-            conn.commit()
+            version = conn.execute(
+                "SELECT value FROM _meta WHERE key = 'schema_version'"
+            ).fetchone()
+            current = int(version[0]) if version else 0
+            if current < _SCHEMA_VERSION:
+                self._migrate(conn, current, _SCHEMA_VERSION)
+                conn.execute(
+                    "UPDATE _meta SET value = ? WHERE key = 'schema_version'",
+                    (str(_SCHEMA_VERSION),),
+                )
+                conn.commit()
+
+    def _migrate(self, conn: sqlite3.Connection, old: int, new: int) -> None:
+        """Run incremental schema migrations."""
+        if old < 2:
+            # v1→v2: extend mcp_servers with transport/command/args/env/cwd/headers/timeout
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(mcp_servers)").fetchall()}
+            for col, spec in (
+                ("transport", "TEXT NOT NULL DEFAULT 'stdio'"),
+                ("command",   "TEXT NOT NULL DEFAULT ''"),
+                ("args",      "TEXT NOT NULL DEFAULT ''"),
+                ("env",       "TEXT NOT NULL DEFAULT ''"),
+                ("cwd",       "TEXT NOT NULL DEFAULT ''"),
+                ("headers",   "TEXT NOT NULL DEFAULT ''"),
+                ("timeout",   "REAL NOT NULL DEFAULT 30.0"),
+            ):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE mcp_servers ADD COLUMN {col} {spec}")
+
+        if old < 3:
+            # v2→v3: add encoding and sse_read_timeout columns
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(mcp_servers)").fetchall()}
+            for col, spec in (
+                ("encoding", "TEXT NOT NULL DEFAULT 'utf-8'"),
+                ("sse_read_timeout", "REAL NOT NULL DEFAULT 300.0"),
+            ):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE mcp_servers ADD COLUMN {col} {spec}")
+
+        if old < 4:
+            # v3→v4: extend skills with version/file_path/install_dir/installed_at
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(skills)").fetchall()}
+            for col, spec in (
+                ("version", "TEXT NOT NULL DEFAULT ''"),
+                ("file_path", "TEXT NOT NULL DEFAULT ''"),
+                ("install_dir", "TEXT NOT NULL DEFAULT ''"),
+                ("installed_at", "TEXT NOT NULL DEFAULT ''"),
+            ):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE skills ADD COLUMN {col} {spec}")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self._db_path))

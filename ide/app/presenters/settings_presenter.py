@@ -131,6 +131,8 @@ def form_state_to_updates(
     ida_mcp_updates: dict[str, object] = {}
     for name in IdaMcpConfig.field_names():
         form_name = _IDA_MCP_FIELD_ALIASES.get(name, name)
+        if not hasattr(state, form_name):
+            continue
         value = getattr(state, form_name)
 
         if name in _OPTIONAL_STR_FIELDS:

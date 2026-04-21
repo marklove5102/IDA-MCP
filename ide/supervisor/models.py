@@ -105,6 +105,7 @@ class IdaMcpConfig:
     server_name: str = DEFAULT_SERVER_NAME
     request_timeout: int = 30
     debug: bool = False
+    skills_enabled: bool = True
     config_path: str | None = None
 
     # Field groups for config rendering order and comments.
@@ -310,11 +311,31 @@ class ModelProvider:
 
 @dataclass(slots=True)
 class McpServerEntry:
-    """A single MCP server connection used by the chat agent."""
+    """A single MCP server connection following langchain-mcp-adapters config.
+
+    Fields map to the MultiServerMCPClient dict format:
+      - ``stdio`` transport uses: command, args, env, cwd, encoding
+      - ``http`` / ``sse`` transport uses: url, headers, timeout, sse_read_timeout
+
+    JSON-encoded fields (args, env, headers) are stored as strings in SQLite
+    and decoded when building the LangChain config dict.
+    """
+
     id: int | None = None
-    name: str = ""
-    url: str = ""
+    name: str = ""          # server key (e.g. "math", "weather")
+    transport: str = "stdio"  # "http" | "sse" | "stdio"
     enabled: bool = True
+    # stdio fields
+    command: str = ""        # executable, e.g. "python"
+    args: str = ""           # JSON array, e.g. '["/path/to/server.py"]'
+    env: str = ""            # JSON object, e.g. '{"API_KEY": "xxx"}'
+    cwd: str = ""            # working directory for stdio
+    encoding: str = "utf-8"  # encoding for stdio transport
+    # http / sse fields
+    url: str = ""            # e.g. "http://localhost:8000/mcp"
+    headers: str = ""        # JSON object, e.g. '{"Authorization": "Bearer t"}'
+    timeout: float = 30.0    # HTTP timeout in seconds
+    sse_read_timeout: float = 300.0  # SSE read timeout in seconds
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -328,14 +349,64 @@ class McpServerEntry:
         allowed = {f.name for f in cls.__dataclass_fields__.values()}
         return cls(**{k: v for k, v in data.items() if k in allowed})
 
+    def to_langchain_config(self) -> dict[str, Any]:
+        """Convert to MultiServerMCPClient-compatible dict.
+
+        The returned dict is suitable as a value in the MultiServerMCPClient
+        constructor's config dict, keyed by server name.
+        """
+        import json
+
+        config: dict[str, Any] = {"transport": self.transport}
+
+        if self.transport == "stdio":
+            config["command"] = self.command
+            if self.args:
+                try:
+                    config["args"] = json.loads(self.args)
+                except (json.JSONDecodeError, TypeError):
+                    config["args"] = []
+            if self.env:
+                try:
+                    config["env"] = json.loads(self.env)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if self.cwd:
+                config["cwd"] = self.cwd
+            if self.encoding and self.encoding != "utf-8":
+                config["encoding"] = self.encoding
+        else:
+            # http, sse — all use url
+            config["url"] = self.url
+            if self.headers:
+                try:
+                    config["headers"] = json.loads(self.headers)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if self.timeout and self.transport in ("http", "sse"):
+                config["timeout"] = self.timeout
+            if self.sse_read_timeout and self.transport == "sse":
+                config["sse_read_timeout"] = self.sse_read_timeout
+
+        return config
+
 
 @dataclass(slots=True)
 class SkillEntry:
-    """A skill registered for the chat agent."""
+    """A skill registered for the chat agent.
+
+    Skills can be installed from zip packages that are extracted into
+    ``{plugin_dir}/ida_mcp/skills/{name}/``.
+    """
+
     id: int | None = None
     name: str = ""
     description: str = ""
     enabled: bool = True
+    version: str = ""          # skill version string, e.g. "1.0.0"
+    file_path: str = ""        # original zip file name
+    install_dir: str = ""      # relative path under plugin_dir/ida_mcp/skills/
+    installed_at: str = ""     # ISO timestamp of installation
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

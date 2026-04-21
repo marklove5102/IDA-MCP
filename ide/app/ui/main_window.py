@@ -274,7 +274,9 @@ class MainWindow(QMainWindow):
         self._gateway_log.setMaximumHeight(160)
         content_layout.addWidget(self._gateway_log, 1)
 
-        return self._build_panel("main.panel.status", content, "status")
+        panel = self._build_panel("main.panel.status", content, "status")
+        self._panel_labels["status"].setVisible(False)
+        return panel
 
     def _build_status_cards(self) -> QWidget:
         widget = QWidget()

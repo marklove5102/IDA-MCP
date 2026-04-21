@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QTableWidget
 
@@ -53,6 +54,24 @@ class _StubSettingsService:
             missing_requirements=["pytest"],
         )
 
+    def get_mcp_servers(self) -> list:
+        return []
+
+    def get_skills(self) -> list:
+        return []
+
+    def get_skills_dir(self):
+        return Path("E:/plugins/ida_mcp/skills")
+
+    def update_skill(self, skill_id, **updates):
+        pass
+
+    def add_skill(self, **kwargs):
+        pass
+
+    def remove_skill(self, skill_id):
+        pass
+
 
 def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() -> None:
     _app()
@@ -76,7 +95,6 @@ def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() 
     category_list = page._category_list
     stack = page._stack
 
-    assert page._title_label.text() == "设置"
     assert category_list.item(0).text() == "配置"
     assert page._language_combo.currentData() == "zh"
 
@@ -85,7 +103,6 @@ def test_settings_page_language_switch_rebuilds_without_deleting_core_widgets() 
 
     assert page._category_list is category_list
     assert page._stack is stack
-    assert page._title_label.text() == "Settings"
     assert category_list.item(0).text() == "Config"
     assert category_list.item(1).text() == "Install"
     assert category_list.item(2).text() == "Upgrade"

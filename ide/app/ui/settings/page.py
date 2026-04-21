@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from PySide6.QtCore import QThread, Qt, Signal
 
 from shared.platform import display_path as _display_path
@@ -255,8 +257,252 @@ class ModelProviderDialog(QDialog):
 
 
 # ===================================================================
-# Background workers
+# MCP server dialog
 # ===================================================================
+
+class McpServerDialog(QDialog):
+    """Dialog for adding or editing an MCP server entry."""
+
+    def __init__(self, i18n, *, server=None, parent=None) -> None:
+        super().__init__(parent)
+        self._i18n = i18n
+        self._server = server
+        self._setup_ui()
+
+    def _t(self, key: str, **kwargs: object) -> str:
+        return self._i18n.t(key, **kwargs)
+
+    def _setup_ui(self) -> None:
+        self.setWindowTitle(
+            self._t("settings.mcp.dialog.add")
+            if self._server is None
+            else self._t("settings.mcp.dialog.edit")
+        )
+        self.setObjectName("modelProviderDialog")
+        self.setMinimumWidth(480)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(6)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        # --- Name ---
+        layout.addWidget(self._section_label(self._t("settings.field.mcp_server_name")))
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("my-server")
+        layout.addWidget(self._name_edit)
+
+        # --- Transport ---
+        layout.addWidget(self._section_label(self._t("settings.field.mcp_transport")))
+        self._transport_combo = NoWheelComboBox()
+        self._transport_items = [
+            ("stdio", self._t("settings.mcp.transport.stdio")),
+            ("http", self._t("settings.mcp.transport.http")),
+            ("sse", self._t("settings.mcp.transport.sse")),
+        ]
+        for value, label in self._transport_items:
+            self._transport_combo.addItem(label, value)
+        self._transport_combo.currentIndexChanged.connect(self._on_transport_changed)
+        layout.addWidget(self._transport_combo)
+
+        layout.addWidget(self._separator())
+        layout.addSpacing(4)
+
+        # --- Stdio fields ---
+        self._stdio_widget = QWidget()
+        stdio_layout = QVBoxLayout(self._stdio_widget)
+        stdio_layout.setContentsMargins(0, 0, 0, 0)
+        stdio_layout.setSpacing(6)
+
+        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_command")))
+        self._command_edit = QLineEdit()
+        self._command_edit.setPlaceholderText("python")
+        stdio_layout.addWidget(self._command_edit)
+
+        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_args")))
+        self._args_edit = QTextEdit()
+        self._args_edit.setMaximumHeight(72)
+        self._args_edit.setPlaceholderText("/path/to/server.py\n--verbose")
+        stdio_layout.addWidget(self._args_edit)
+
+        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_env")))
+        self._env_edit = QTextEdit()
+        self._env_edit.setMaximumHeight(72)
+        self._env_edit.setPlaceholderText("API_KEY=xxx\nANOTHER_VAR=value")
+        stdio_layout.addWidget(self._env_edit)
+
+        stdio_layout.addWidget(self._field_label(self._t("settings.field.mcp_cwd")))
+        self._cwd_edit = QLineEdit()
+        self._cwd_edit.setPlaceholderText("/working/directory")
+        stdio_layout.addWidget(self._cwd_edit)
+
+        layout.addWidget(self._stdio_widget)
+
+        # --- HTTP/SSE fields ---
+        self._http_widget = QWidget()
+        http_layout = QVBoxLayout(self._http_widget)
+        http_layout.setContentsMargins(0, 0, 0, 0)
+        http_layout.setSpacing(6)
+
+        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_url")))
+        self._url_edit = QLineEdit()
+        self._url_edit.setPlaceholderText("http://localhost:8000/mcp")
+        http_layout.addWidget(self._url_edit)
+
+        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_headers")))
+        self._headers_edit = QTextEdit()
+        self._headers_edit.setMaximumHeight(72)
+        self._headers_edit.setPlaceholderText("Authorization: Bearer token\nX-Custom-Header: value")
+        http_layout.addWidget(self._headers_edit)
+
+        http_layout.addWidget(self._field_label(self._t("settings.field.mcp_timeout")))
+        self._timeout_spin = NoWheelDoubleSpinBox()
+        self._timeout_spin.setRange(1.0, 600.0)
+        self._timeout_spin.setSingleStep(5.0)
+        self._timeout_spin.setDecimals(1)
+        self._timeout_spin.setValue(30.0)
+        self._timeout_spin.setSuffix(" s")
+        http_layout.addWidget(self._timeout_spin)
+
+        layout.addWidget(self._http_widget)
+
+        # --- Enabled ---
+        self._enabled_check = QCheckBox(self._t("settings.skills.enabled"))
+        self._enabled_check.setChecked(True)
+        layout.addWidget(self._enabled_check)
+
+        layout.addSpacing(8)
+
+        # --- Buttons ---
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._validate_and_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # --- Pre-fill ---
+        if self._server is not None:
+            self._name_edit.setText(self._server.name or "")
+            self._command_edit.setText(self._server.command or "")
+            self._cwd_edit.setText(self._server.cwd or "")
+            self._url_edit.setText(self._server.url or "")
+            self._timeout_spin.setValue(self._server.timeout)
+            self._enabled_check.setChecked(self._server.enabled)
+
+            # Decode JSON args → plain text lines
+            try:
+                args_list = json.loads(self._server.args) if self._server.args else []
+                self._args_edit.setPlainText("\n".join(args_list))
+            except (json.JSONDecodeError, TypeError):
+                self._args_edit.setPlainText(self._server.args or "")
+
+            # Decode JSON env → "KEY=VALUE" lines
+            try:
+                env_dict = json.loads(self._server.env) if self._server.env else {}
+                self._env_edit.setPlainText(
+                    "\n".join(f"{k}={v}" for k, v in env_dict.items())
+                )
+            except (json.JSONDecodeError, TypeError):
+                self._env_edit.setPlainText(self._server.env or "")
+
+            # Decode JSON headers → "Key: Value" lines
+            try:
+                hdr_dict = json.loads(self._server.headers) if self._server.headers else {}
+                self._headers_edit.setPlainText(
+                    "\n".join(f"{k}: {v}" for k, v in hdr_dict.items())
+                )
+            except (json.JSONDecodeError, TypeError):
+                self._headers_edit.setPlainText(self._server.headers or "")
+
+            for i, (value, _) in enumerate(self._transport_items):
+                if value == self._server.transport:
+                    self._transport_combo.setCurrentIndex(i)
+                    break
+        else:
+            self._transport_combo.setCurrentIndex(0)
+
+        self._on_transport_changed()
+
+    def _section_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("dialogSectionTitle")
+        return label
+
+    def _field_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("settingsFieldLabel")
+        return label
+
+    def _separator(self) -> QFrame:
+        line = QFrame()
+        line.setObjectName("dialogSeparator")
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFixedHeight(1)
+        return line
+
+    def _on_transport_changed(self) -> None:
+        transport = self._transport_combo.currentData() or "stdio"
+        is_stdio = transport == "stdio"
+        self._stdio_widget.setVisible(is_stdio)
+        self._http_widget.setVisible(not is_stdio)
+
+    def _validate_and_accept(self) -> None:
+        errors: list[str] = []
+        if not self._name_edit.text().strip():
+            errors.append(self._t("settings.field.mcp_server_name") + " is required.")
+        transport = self._transport_combo.currentData() or "stdio"
+        if transport == "stdio":
+            if not self._command_edit.text().strip():
+                errors.append(self._t("settings.field.mcp_command") + " is required.")
+        else:
+            if not self._url_edit.text().strip():
+                errors.append(self._t("settings.field.mcp_url") + " is required.")
+        if errors:
+            QMessageBox.warning(self, self._t("settings.dialog.settings"), "\n".join(errors))
+            return
+        self.accept()
+
+    def get_values(self) -> dict:
+        transport = self._transport_combo.currentData() or "stdio"
+
+        # args: plain text lines → JSON array string
+        args_raw = self._args_edit.toPlainText().strip()
+        args_list = [line.strip() for line in args_raw.splitlines() if line.strip()]
+        args_json = json.dumps(args_list)
+
+        # env: "KEY=VALUE" lines → JSON object string
+        env_raw = self._env_edit.toPlainText().strip()
+        env_dict: dict[str, str] = {}
+        for line in env_raw.splitlines():
+            line = line.strip()
+            if "=" in line:
+                k, v = line.split("=", 1)
+                env_dict[k.strip()] = v.strip()
+        env_json = json.dumps(env_dict) if env_dict else ""
+
+        # headers: "Key: Value" lines → JSON object string
+        headers_raw = self._headers_edit.toPlainText().strip()
+        headers_dict: dict[str, str] = {}
+        for line in headers_raw.splitlines():
+            line = line.strip()
+            if ":" in line:
+                k, v = line.split(":", 1)
+                headers_dict[k.strip()] = v.strip()
+        headers_json = json.dumps(headers_dict) if headers_dict else ""
+
+        return {
+            "name": self._name_edit.text().strip(),
+            "transport": transport,
+            "command": self._command_edit.text().strip(),
+            "args": args_json,
+            "env": env_json,
+            "cwd": self._cwd_edit.text().strip(),
+            "url": self._url_edit.text().strip(),
+            "headers": headers_json,
+            "timeout": self._timeout_spin.value(),
+            "enabled": self._enabled_check.isChecked(),
+        }
 
 class _InstallWorker(QThread):
     """Runs reinstall in a background thread."""
@@ -615,59 +861,25 @@ class SettingsPage(QWidget):
         self._advanced_container = QWidget()
 
         # --- Model providers widgets ---
-        self._model_providers_table = QTableWidget(0, 6)
-        self._model_providers_table.setObjectName("modelProvidersTable")
-        self._model_providers_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._model_providers_table.setSelectionMode(QTableWidget.NoSelection)
-        self._model_providers_table.verticalHeader().setVisible(False)
-        self._model_providers_table.setAlternatingRowColors(True)
-        self._model_providers_table.setShowGrid(False)
-        self._model_providers_table.verticalHeader().setDefaultSectionSize(38)
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeToContents
-        )
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.Stretch
-        )
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.Stretch
-        )
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.ResizeToContents
-        )
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            4, QHeaderView.ResizeToContents
-        )
-        self._model_providers_table.horizontalHeader().setSectionResizeMode(
-            5, QHeaderView.ResizeToContents
-        )
+        self._model_providers_container = QWidget()
+        self._model_providers_layout = QVBoxLayout(self._model_providers_container)
+        self._model_providers_layout.setContentsMargins(0, 0, 0, 0)
+        self._model_providers_layout.setSpacing(10)
+        self._model_providers_layout.addStretch(1)
 
         # --- MCP settings widgets ---
-        self._mcp_servers_table = QTableWidget(0, 2)
-        self._mcp_servers_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._mcp_servers_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._mcp_servers_table.verticalHeader().setVisible(False)
-        self._mcp_servers_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.Stretch
-        )
-        self._mcp_servers_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeToContents
-        )
+        self._mcp_servers_container = QWidget()
+        self._mcp_servers_layout = QVBoxLayout(self._mcp_servers_container)
+        self._mcp_servers_layout.setContentsMargins(0, 0, 0, 0)
+        self._mcp_servers_layout.setSpacing(10)
+        self._mcp_servers_layout.addStretch(1)
 
-        # --- Skills table ---
-        self._skills_table = QTableWidget(0, 3)
-        self._skills_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._skills_table.setSelectionMode(QTableWidget.NoSelection)
-        self._skills_table.verticalHeader().setVisible(False)
-        self._skills_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeToContents
-        )
-        self._skills_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.Stretch
-        )
-        self._skills_table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeToContents
-        )
+        # --- Skills widgets ---
+        self._skills_container = QWidget()
+        self._skills_layout = QVBoxLayout(self._skills_container)
+        self._skills_layout.setContentsMargins(0, 0, 0, 0)
+        self._skills_layout.setSpacing(10)
+        self._skills_layout.addStretch(1)
 
         self._advanced_layout = QVBoxLayout(self._advanced_container)
         self._advanced_layout.setContentsMargins(0, 0, 0, 0)
@@ -722,7 +934,6 @@ class SettingsPage(QWidget):
             header_layout = QVBoxLayout(header)
             header_layout.setContentsMargins(0, 0, 0, 0)
             header_layout.setSpacing(6)
-            header_layout.addWidget(self._title_label)
 
             body = QWidget()
             body_layout = QHBoxLayout(body)
@@ -733,8 +944,6 @@ class SettingsPage(QWidget):
 
             root_layout.addWidget(header)
             root_layout.addWidget(body, 1)
-
-        self._title_label.setText(self._t("settings.title"))
 
         self._category_list.clear()
         self._category_list.setObjectName("settingsCategoryList")
@@ -993,26 +1202,13 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        self._model_providers_table.setHorizontalHeaderLabels(
-            [
-                self._t("settings.field.model_name"),
-                self._t("settings.field.model_base_url"),
-                self._t("settings.field.model_id"),
-                self._t("settings.field.model_api_mode"),
-                self._t("settings.skills.enabled"),
-                "",
-            ]
-        )
-
         layout.addWidget(
             self._build_config_group(
                 self._t("settings.group.model_providers"),
                 self._t("settings.group.model_providers.desc"),
-                [self._model_providers_table],
+                [self._model_providers_container],
             )
         )
-
-        self._model_providers_table.cellDoubleClicked.connect(self._edit_model_provider)
 
         action_bar = QWidget()
         action_bar_layout = QHBoxLayout(action_bar)
@@ -1035,15 +1231,9 @@ class SettingsPage(QWidget):
             return
         values = dialog.get_values()
         self._settings_service.add_model_provider(**values)
-        self._refresh_model_providers_table()
+        self._refresh_model_cards()
 
-    def _edit_model_provider(self, row: int, _col: int) -> None:
-        item = self._model_providers_table.item(row, 0)
-        if item is None:
-            return
-        provider_id = item.data(Qt.ItemDataRole.UserRole)
-        if provider_id is None:
-            return
+    def _edit_model_provider(self, provider_id: int) -> None:
         providers = self._settings_service.get_model_providers()
         provider = next((p for p in providers if p.id == provider_id), None)
         if provider is None:
@@ -1053,14 +1243,44 @@ class SettingsPage(QWidget):
             return
         values = dialog.get_values()
         self._settings_service.update_model_provider(provider_id, **values)
-        self._refresh_model_providers_table()
+        self._refresh_model_cards()
 
     def _delete_model_provider(self, provider_id: int) -> None:
         self._settings_service.remove_model_provider(provider_id)
-        self._refresh_model_providers_table()
+        self._refresh_model_cards()
 
-    def _refresh_model_providers_table(self) -> None:
-        from PySide6.QtGui import QColor
+    def _refresh_model_cards(self) -> None:
+        # Remove existing cards (keep the trailing stretch)
+        while self._model_providers_layout.count():
+            item = self._model_providers_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+
+        providers = self._settings_service.get_model_providers()
+        if not providers:
+            empty = QLabel(self._t("settings.model.empty"))
+            empty.setObjectName("settingsFieldDescription")
+            empty.setWordWrap(True)
+            self._model_providers_layout.addWidget(empty)
+            self._model_providers_layout.addStretch(1)
+            return
+
+        for provider in providers:
+            self._model_providers_layout.addWidget(
+                self._build_provider_card(provider)
+            )
+        self._model_providers_layout.addStretch(1)
+
+    def _build_provider_card(self, provider) -> QFrame:
+        """Build a single model provider card widget."""
+        card = QFrame()
+        card.setObjectName("modelProviderCard")
+        card.setProperty("enabled", "true" if provider.enabled else "false")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+        card_layout.setSpacing(6)
 
         api_mode_labels = {
             "openai_responses": self._t("settings.model.api_mode.openai_responses"),
@@ -1069,54 +1289,108 @@ class SettingsPage(QWidget):
             "gemini": self._t("settings.model.api_mode.gemini"),
         }
 
-        enabled_text = self._t("settings.bool.yes")
-        disabled_text = self._t("settings.bool.no")
+        # --- Header row: name + enabled badge + buttons ---
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
 
-        providers = self._settings_service.get_model_providers()
-        self._model_providers_table.setRowCount(len(providers))
-        for row_index, provider in enumerate(providers):
-            # Name (bold)
-            name_item = QTableWidgetItem(provider.name or "")
-            name_item.setData(Qt.ItemDataRole.UserRole, provider.id)
-            name_font = name_item.font()
-            name_font.setBold(True)
-            name_item.setFont(name_font)
-            self._model_providers_table.setItem(row_index, 0, name_item)
+        name_label = QLabel(provider.name or "—")
+        name_label.setObjectName("settingsFieldLabel")
+        name_font = name_label.font()
+        name_font.setPointSize(name_font.pointSize() + 1)
+        name_font.setBold(True)
+        name_label.setFont(name_font)
+        header_layout.addWidget(name_label)
 
-            self._model_providers_table.setItem(
-                row_index, 1, QTableWidgetItem(provider.base_url or "")
-            )
-            self._model_providers_table.setItem(
-                row_index, 2, QTableWidgetItem(provider.model_name or "")
-            )
-            self._model_providers_table.setItem(
-                row_index, 3,
-                QTableWidgetItem(api_mode_labels.get(provider.api_mode, provider.api_mode)),
-            )
+        enabled_label = QLabel(
+            "● " + (self._t("settings.bool.yes") if provider.enabled else self._t("settings.bool.no"))
+        )
+        enabled_label.setObjectName("cardBadgeEnabled" if provider.enabled else "cardBadgeDisabled")
+        header_layout.addWidget(enabled_label)
 
-            # Enabled indicator (green ● or gray ●)
-            is_enabled = bool(provider.enabled)
-            dot = "●  " + (enabled_text if is_enabled else disabled_text)
-            enabled_item = QTableWidgetItem(dot)
-            enabled_item.setForeground(
-                QColor("#059669") if is_enabled else QColor("#9ca3af")
-            )
-            self._model_providers_table.setItem(row_index, 4, enabled_item)
+        header_layout.addStretch(1)
 
-            # Per-row delete button (flat danger style)
-            btn_widget = QWidget()
-            btn_layout = QHBoxLayout(btn_widget)
-            btn_layout.setContentsMargins(4, 2, 4, 2)
-            btn_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            del_btn = QPushButton(self._t("settings.model.remove"))
-            del_btn.setObjectName("dangerButton")
-            del_btn.setFixedHeight(26)
-            del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            del_btn.clicked.connect(
-                lambda checked, pid=provider.id: self._delete_model_provider(pid)
-            )
-            btn_layout.addWidget(del_btn)
-            self._model_providers_table.setCellWidget(row_index, 5, btn_widget)
+        edit_btn = QPushButton(self._t("settings.model.dialog.edit"))
+        edit_btn.setObjectName("modelCardEditButton")
+        edit_btn.setFixedHeight(28)
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.clicked.connect(
+            lambda checked, pid=provider.id: self._edit_model_provider(pid)
+        )
+        header_layout.addWidget(edit_btn)
+
+        del_btn = QPushButton(self._t("settings.model.remove"))
+        del_btn.setObjectName("dangerButton")
+        del_btn.setFixedHeight(28)
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.clicked.connect(
+            lambda checked, pid=provider.id: self._delete_model_provider(pid)
+        )
+        header_layout.addWidget(del_btn)
+
+        card_layout.addWidget(header)
+
+        separator = QFrame()
+        separator.setObjectName("cardSeparator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFixedHeight(1)
+        card_layout.addWidget(separator)
+
+        # --- Details row ---
+        details = QWidget()
+        details_layout = QHBoxLayout(details)
+        details_layout.setContentsMargins(0, 4, 0, 0)
+        details_layout.setSpacing(24)
+
+        # Model ID + API Mode
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(2)
+        left_layout.addWidget(self._detail_label(
+            self._t("settings.field.model_id"), provider.model_name or "—"
+        ))
+        left_layout.addWidget(self._detail_label(
+            self._t("settings.field.model_api_mode"),
+            api_mode_labels.get(provider.api_mode, provider.api_mode),
+        ))
+        details_layout.addWidget(left, 1)
+
+        # Base URL + Top-P / Temperature
+        mid = QWidget()
+        mid_layout = QVBoxLayout(mid)
+        mid_layout.setContentsMargins(0, 0, 0, 0)
+        mid_layout.setSpacing(2)
+        base_url_display = provider.base_url or "—"
+        if len(base_url_display) > 40:
+            base_url_display = base_url_display[:37] + "..."
+        mid_layout.addWidget(self._detail_label(
+            self._t("settings.field.model_base_url"), base_url_display
+        ))
+        mid_layout.addWidget(self._detail_label(
+            f"{self._t('settings.field.model_top_p')} / {self._t('settings.field.model_temperature')}",
+            f"{provider.top_p:.2f} / {provider.temperature:.1f}",
+        ))
+        details_layout.addWidget(mid, 1)
+
+        card_layout.addWidget(details)
+
+        return card
+
+    def _detail_label(self, key: str, value: str) -> QWidget:
+        """Build a key:value detail row for a card."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+        key_label = QLabel(key)
+        key_label.setObjectName("settingsFieldDescription")
+        val_label = QLabel(value)
+        val_label.setObjectName("settingsFieldLabel")
+        layout.addWidget(key_label)
+        layout.addWidget(val_label)
+        return w
 
     # ------------------------------------------------------------------
     # MCP settings page
@@ -1128,18 +1402,11 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        self._mcp_servers_table.setHorizontalHeaderLabels(
-            [
-                self._t("settings.field.mcp_server_name"),
-                self._t("settings.field.mcp_server_url"),
-            ]
-        )
-
         layout.addWidget(
             self._build_config_group(
                 self._t("settings.group.mcp_servers"),
                 self._t("settings.group.mcp_servers.desc"),
-                [self._mcp_servers_table],
+                [self._mcp_servers_container],
             )
         )
 
@@ -1148,15 +1415,215 @@ class SettingsPage(QWidget):
         action_bar_layout.setContentsMargins(0, 0, 0, 0)
         action_bar_layout.setSpacing(8)
         add_button = QPushButton(self._t("settings.mcp.add"))
-        remove_button = QPushButton(self._t("settings.mcp.remove"))
+        add_button.setObjectName("primaryButton")
+        add_button.clicked.connect(self._add_mcp_server)
         action_bar_layout.addWidget(add_button)
-        action_bar_layout.addWidget(remove_button)
         action_bar_layout.addStretch(1)
         layout.addWidget(action_bar)
 
         layout.addStretch(1)
         layout.addWidget(self._build_save_bar(show_hint=True))
         return self._wrap_scroll(widget)
+
+    # --- MCP server CRUD handlers ---
+
+    def _refresh_mcp_servers(self) -> None:
+        """Populate the MCP server cards from the service."""
+        while self._mcp_servers_layout.count():
+            item = self._mcp_servers_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+
+        servers = self._settings_service.get_mcp_servers()
+        if not servers:
+            empty = QLabel(self._t("settings.mcp.empty"))
+            empty.setObjectName("settingsFieldDescription")
+            self._mcp_servers_layout.addWidget(empty)
+            self._mcp_servers_layout.addStretch(1)
+            return
+
+        for server in servers:
+            self._mcp_servers_layout.addWidget(
+                self._build_mcp_server_card(server)
+            )
+        self._mcp_servers_layout.addStretch(1)
+
+    def _add_mcp_server(self) -> None:
+        dialog = McpServerDialog(self._i18n, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            values = dialog.get_values()
+            self._settings_service.add_mcp_server(**values)
+            self._refresh_mcp_servers()
+
+    def _delete_mcp_server(self, server_id: int) -> None:
+        self._settings_service.remove_mcp_server(server_id)
+        self._refresh_mcp_servers()
+
+    def _toggle_mcp_server_enabled(self, server_id: int, enabled: bool) -> None:
+        self._settings_service.update_mcp_server(server_id, enabled=enabled)
+        self._refresh_mcp_servers()
+
+    def _edit_mcp_server(self, server_id: int) -> None:
+        servers = self._settings_service.get_mcp_servers()
+        server = next((s for s in servers if s.id == server_id), None)
+        if server is None:
+            return
+        dialog = McpServerDialog(self._i18n, server=server, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            values = dialog.get_values()
+            self._settings_service.update_mcp_server(server_id, **values)
+            self._refresh_mcp_servers()
+
+    def _build_mcp_server_card(self, server) -> QFrame:
+        """Build a single MCP server card widget."""
+        card = QFrame()
+        card.setObjectName("modelProviderCard")
+        card.setProperty("enabled", "true" if server.enabled else "false")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+        card_layout.setSpacing(6)
+
+        transport_labels = {
+            "stdio": self._t("settings.mcp.transport.stdio"),
+            "http": self._t("settings.mcp.transport.http"),
+            "sse": self._t("settings.mcp.transport.sse"),
+        }
+
+        # --- Header row: name + transport badge + enabled + buttons ---
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
+        name_label = QLabel(server.name or "—")
+        name_label.setObjectName("settingsFieldLabel")
+        name_font = name_label.font()
+        name_font.setPointSize(name_font.pointSize() + 1)
+        name_font.setBold(True)
+        name_label.setFont(name_font)
+        header_layout.addWidget(name_label)
+
+        transport_label = QLabel(transport_labels.get(server.transport, server.transport))
+        transport_label.setObjectName("cardBadgeTransport")
+        header_layout.addWidget(transport_label)
+
+        enabled_label = QLabel(
+            "● " + (self._t("settings.bool.yes") if server.enabled else self._t("settings.bool.no"))
+        )
+        enabled_label.setObjectName("cardBadgeEnabled" if server.enabled else "cardBadgeDisabled")
+        header_layout.addWidget(enabled_label)
+
+        header_layout.addStretch(1)
+
+        toggle_btn = QPushButton(
+            self._t("settings.bool.no") if server.enabled else self._t("settings.bool.yes")
+        )
+        toggle_btn.setObjectName("cardToggleButton")
+        toggle_btn.setProperty("active", "true" if server.enabled else "false")
+        toggle_btn.setFixedHeight(28)
+        toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        toggle_btn.clicked.connect(
+            lambda checked, sid=server.id, en=not server.enabled: self._toggle_mcp_server_enabled(sid, en)
+        )
+        header_layout.addWidget(toggle_btn)
+
+        edit_btn = QPushButton(self._t("settings.model.dialog.edit"))
+        edit_btn.setObjectName("modelCardEditButton")
+        edit_btn.setFixedHeight(28)
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.clicked.connect(
+            lambda checked, sid=server.id: self._edit_mcp_server(sid)
+        )
+        header_layout.addWidget(edit_btn)
+
+        del_btn = QPushButton(self._t("settings.mcp.remove"))
+        del_btn.setObjectName("dangerButton")
+        del_btn.setFixedHeight(28)
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.clicked.connect(
+            lambda checked, sid=server.id: self._delete_mcp_server(sid)
+        )
+        header_layout.addWidget(del_btn)
+
+        card_layout.addWidget(header)
+
+        separator = QFrame()
+        separator.setObjectName("cardSeparator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFixedHeight(1)
+        card_layout.addWidget(separator)
+
+        # --- Details row ---
+        details = QWidget()
+        details_layout = QHBoxLayout(details)
+        details_layout.setContentsMargins(0, 4, 0, 0)
+        details_layout.setSpacing(24)
+
+        if server.transport == "stdio":
+            left = QWidget()
+            left_layout = QVBoxLayout(left)
+            left_layout.setContentsMargins(0, 0, 0, 0)
+            left_layout.setSpacing(2)
+            left_layout.addWidget(self._detail_label(
+                self._t("settings.field.mcp_command"), server.command or "—"
+            ))
+            details_layout.addWidget(left, 1)
+
+            mid = QWidget()
+            mid_layout = QVBoxLayout(mid)
+            mid_layout.setContentsMargins(0, 0, 0, 0)
+            mid_layout.setSpacing(2)
+            try:
+                args_list = json.loads(server.args) if server.args else []
+            except (json.JSONDecodeError, TypeError):
+                args_list = []
+            args_display = " ".join(args_list) if args_list else "—"
+            if len(args_display) > 50:
+                args_display = args_display[:47] + "..."
+            mid_layout.addWidget(self._detail_label(
+                self._t("settings.field.mcp_args"), args_display
+            ))
+            details_layout.addWidget(mid, 1)
+
+            right = QWidget()
+            right_layout = QVBoxLayout(right)
+            right_layout.setContentsMargins(0, 0, 0, 0)
+            right_layout.setSpacing(2)
+            cwd_display = server.cwd or "—"
+            if len(cwd_display) > 40:
+                cwd_display = cwd_display[:37] + "..."
+            right_layout.addWidget(self._detail_label(
+                self._t("settings.field.mcp_cwd"), cwd_display
+            ))
+            details_layout.addWidget(right, 1)
+        else:
+            left = QWidget()
+            left_layout = QVBoxLayout(left)
+            left_layout.setContentsMargins(0, 0, 0, 0)
+            left_layout.setSpacing(2)
+            url_display = server.url or "—"
+            if len(url_display) > 60:
+                url_display = url_display[:57] + "..."
+            left_layout.addWidget(self._detail_label(
+                self._t("settings.field.mcp_url"), url_display
+            ))
+            details_layout.addWidget(left, 2)
+
+            right = QWidget()
+            right_layout = QVBoxLayout(right)
+            right_layout.setContentsMargins(0, 0, 0, 0)
+            right_layout.setSpacing(2)
+            right_layout.addWidget(self._detail_label(
+                self._t("settings.field.mcp_timeout"),
+                f"{server.timeout:.1f} s",
+            ))
+            details_layout.addWidget(right, 1)
+
+        card_layout.addWidget(details)
+
+        return card
 
     # ------------------------------------------------------------------
     # Skills settings page
@@ -1168,24 +1635,268 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        self._skills_table.setHorizontalHeaderLabels(
-            [
-                self._t("settings.skills.enabled"),
-                self._t("settings.skills.name"),
-                self._t("settings.skills.description"),
-            ]
-        )
-
         layout.addWidget(
             self._build_config_group(
                 self._t("settings.group.skills_registry"),
                 self._t("settings.group.skills_registry.desc"),
-                [self._skills_table],
+                [self._skills_container],
             )
         )
 
+        action_bar = QWidget()
+        action_bar_layout = QHBoxLayout(action_bar)
+        action_bar_layout.setContentsMargins(0, 0, 0, 0)
+        action_bar_layout.setSpacing(8)
+        import_button = QPushButton(self._t("settings.skills.import"))
+        import_button.setObjectName("primaryButton")
+        import_button.clicked.connect(self._import_skill_zip)
+        action_bar_layout.addWidget(import_button)
+        action_bar_layout.addStretch(1)
+        layout.addWidget(action_bar)
+
         layout.addStretch(1)
+        layout.addWidget(self._build_save_bar(show_hint=True))
         return self._wrap_scroll(widget)
+
+    # --- Skills CRUD handlers ---
+
+    def _refresh_skills(self) -> None:
+        """Populate the skill cards from the service."""
+        while self._skills_layout.count():
+            item = self._skills_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+
+        skills = self._settings_service.get_skills()
+        if not skills:
+            empty = QLabel(self._t("settings.skills.empty"))
+            empty.setObjectName("settingsFieldDescription")
+            empty.setWordWrap(True)
+            self._skills_layout.addWidget(empty)
+            self._skills_layout.addStretch(1)
+            return
+
+        for skill in skills:
+            self._skills_layout.addWidget(self._build_skill_card(skill))
+        self._skills_layout.addStretch(1)
+
+    def _import_skill_zip(self) -> None:
+        """Open a file dialog to select and import a skill zip package."""
+        start = ""
+        selected, _ = QFileDialog.getOpenFileName(
+            self,
+            self._t("settings.skills.dialog.import"),
+            start,
+            "Zip Packages (*.zip);;All Files (*)",
+        )
+        if not selected:
+            return
+
+        import shutil
+        import tempfile
+        import zipfile
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        zip_path = Path(selected)
+        file_name = zip_path.name
+
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp = Path(tmp_dir)
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    zf.extractall(tmp)
+
+                manifest = None
+                skill_root = tmp
+                for candidate in (tmp / "skill.json", tmp / "package.json"):
+                    if candidate.exists():
+                        manifest = json.loads(candidate.read_text(encoding="utf-8"))
+                        break
+
+                if manifest is None:
+                    for subdir in tmp.iterdir():
+                        if subdir.is_dir():
+                            for candidate in (subdir / "skill.json", subdir / "package.json"):
+                                if candidate.exists():
+                                    manifest = json.loads(candidate.read_text(encoding="utf-8"))
+                                    skill_root = subdir
+                                    break
+                            if manifest:
+                                break
+
+                skill_name = manifest.get("name", "") if manifest else zip_path.stem
+                if not skill_name:
+                    skill_name = zip_path.stem
+                skill_description = manifest.get("description", "") if manifest else ""
+                skill_version = manifest.get("version", "") if manifest else ""
+
+                safe_name = "".join(
+                    c if c.isalnum() or c in ("-", "_") else "_" for c in skill_name
+                )
+                install_dir_name = safe_name
+
+                skills_dir = self._settings_service.get_skills_dir()
+                dest = skills_dir / install_dir_name
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(skill_root, dest)
+
+            now = datetime.now(timezone.utc).isoformat()
+            self._settings_service.add_skill(
+                name=skill_name,
+                description=skill_description,
+                version=skill_version,
+                file_path=file_name,
+                install_dir=install_dir_name,
+                installed_at=now,
+            )
+            self._refresh_skills()
+            QMessageBox.information(
+                self,
+                self._t("settings.dialog.settings"),
+                self._t("settings.skills.import_success", name=skill_name),
+            )
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                self._t("settings.dialog.settings"),
+                self._t("settings.skills.import_failed", error=str(exc)),
+            )
+
+    def _delete_skill(self, skill_id: int) -> None:
+        """Remove a skill and delete its installed files."""
+        import shutil
+
+        skills = self._settings_service.get_skills()
+        skill = next((s for s in skills if s.id == skill_id), None)
+        if skill is None:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            self._t("settings.dialog.settings"),
+            self._t("settings.skills.remove_confirm", name=skill.name),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        if skill.install_dir:
+            try:
+                skills_dir = self._settings_service.get_skills_dir()
+                dest = skills_dir / skill.install_dir
+                if dest.exists():
+                    shutil.rmtree(dest)
+            except Exception:
+                pass
+
+        self._settings_service.remove_skill(skill_id)
+        self._refresh_skills()
+
+    def _toggle_skill_enabled(self, skill_id: int, enabled: bool) -> None:
+        self._settings_service.update_skill(skill_id, enabled=enabled)
+        self._refresh_skills()
+
+    def _build_skill_card(self, skill) -> QFrame:
+        """Build a single skill card widget."""
+        card = QFrame()
+        card.setObjectName("modelProviderCard")
+        card.setProperty("enabled", "true" if skill.enabled else "false")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+        card_layout.setSpacing(6)
+
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
+        name_label = QLabel(skill.name or "—")
+        name_label.setObjectName("settingsFieldLabel")
+        name_font = name_label.font()
+        name_font.setPointSize(name_font.pointSize() + 1)
+        name_font.setBold(True)
+        name_label.setFont(name_font)
+        header_layout.addWidget(name_label)
+
+        if skill.version:
+            version_label = QLabel(f"v{skill.version}")
+            version_label.setObjectName("cardBadgeVersion")
+            header_layout.addWidget(version_label)
+
+        enabled_label = QLabel(
+            "● " + (self._t("settings.bool.yes") if skill.enabled else self._t("settings.bool.no"))
+        )
+        enabled_label.setObjectName("cardBadgeEnabled" if skill.enabled else "cardBadgeDisabled")
+        header_layout.addWidget(enabled_label)
+
+        header_layout.addStretch(1)
+
+        toggle_btn = QPushButton(
+            self._t("settings.bool.no") if skill.enabled else self._t("settings.bool.yes")
+        )
+        toggle_btn.setObjectName("cardToggleButton")
+        toggle_btn.setProperty("active", "true" if skill.enabled else "false")
+        toggle_btn.setFixedHeight(28)
+        toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        toggle_btn.clicked.connect(
+            lambda checked, sid=skill.id, en=not skill.enabled: self._toggle_skill_enabled(sid, en)
+        )
+        header_layout.addWidget(toggle_btn)
+
+        del_btn = QPushButton(self._t("settings.skills.remove"))
+        del_btn.setObjectName("dangerButton")
+        del_btn.setFixedHeight(28)
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.clicked.connect(lambda checked, sid=skill.id: self._delete_skill(sid))
+        header_layout.addWidget(del_btn)
+
+        card_layout.addWidget(header)
+
+        separator = QFrame()
+        separator.setObjectName("cardSeparator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFixedHeight(1)
+        card_layout.addWidget(separator)
+
+        details = QWidget()
+        details_layout = QHBoxLayout(details)
+        details_layout.setContentsMargins(0, 4, 0, 0)
+        details_layout.setSpacing(24)
+
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(2)
+        desc_display = skill.description or "—"
+        if len(desc_display) > 80:
+            desc_display = desc_display[:77] + "..."
+        left_layout.addWidget(
+            self._detail_label(self._t("settings.skills.description"), desc_display)
+        )
+        details_layout.addWidget(left, 2)
+
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(2)
+        right_layout.addWidget(
+            self._detail_label(self._t("settings.skills.version"), skill.version or "—")
+        )
+        installed_display = skill.installed_at[:10] if skill.installed_at else "—"
+        right_layout.addWidget(
+            self._detail_label(
+                self._t("settings.skills.installed_at"), installed_display
+            )
+        )
+        details_layout.addWidget(right, 1)
+
+        card_layout.addWidget(details)
+
+        return card
 
     # ------------------------------------------------------------------
     # Snapshot / state application
@@ -1212,6 +1923,9 @@ class SettingsPage(QWidget):
         self._install_ctrl.run_check()
 
         self._form_binder.apply_form_state(form_state)
+
+        self._refresh_mcp_servers()
+        self._refresh_skills()
 
         self._sync_wsl_bridge_fields()
         if self._language != previous_language:

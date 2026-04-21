@@ -7,6 +7,7 @@ monkeypatched with a stub so no real threads are spawned.
 """
 
 import os
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
@@ -75,6 +76,15 @@ class _StubSupervisorClient(SupervisorClient):
             installed_requirements={"fastmcp": "1.0.0"},
             missing_requirements=["pytest"],
         )
+
+    def get_mcp_servers(self) -> list:
+        return []
+
+    def get_skills(self) -> list:
+        return []
+
+    def get_skills_dir(self):
+        return Path("E:/plugins/ida_mcp/skills")
 
     def get_snapshot(self, *, log=None) -> SupervisorSnapshot:
         return _build_snapshot(self.ide_config)

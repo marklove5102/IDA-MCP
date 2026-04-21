@@ -79,8 +79,8 @@ class SettingsService:
     def get_mcp_servers(self) -> list[McpServerEntry]:
         return self._supervisor_client.get_mcp_servers()
 
-    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
-        return self._supervisor_client.add_mcp_server(name, url, enabled=enabled)
+    def add_mcp_server(self, **kwargs) -> int:
+        return self._supervisor_client.add_mcp_server(**kwargs)
 
     def remove_mcp_server(self, server_id: int) -> bool:
         return self._supervisor_client.remove_mcp_server(server_id)
@@ -90,8 +90,14 @@ class SettingsService:
     def get_skills(self) -> list[SkillEntry]:
         return self._supervisor_client.get_skills()
 
-    def add_skill(self, name: str, description: str = "", *, enabled: bool = True) -> int:
-        return self._supervisor_client.add_skill(name, description, enabled=enabled)
+    def add_skill(self, **kwargs) -> int:
+        return self._supervisor_client.add_skill(**kwargs)
+
+    def update_skill(self, skill_id: int, **updates: object) -> bool:
+        return self._supervisor_client.update_skill(skill_id, **updates)
 
     def remove_skill(self, skill_id: int) -> bool:
         return self._supervisor_client.remove_skill(skill_id)
+
+    def get_skills_dir(self) -> "Path":
+        return self._supervisor_client.get_skills_dir()

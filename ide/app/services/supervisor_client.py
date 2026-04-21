@@ -116,8 +116,36 @@ class SupervisorClient:
     def get_mcp_servers(self) -> list[McpServerEntry]:
         return self._manager.get_mcp_servers()
 
-    def add_mcp_server(self, name: str, url: str, *, enabled: bool = True) -> int:
-        return self._manager.add_mcp_server(name, url, enabled=enabled)
+    def add_mcp_server(
+        self,
+        name: str = "",
+        transport: str = "stdio",
+        *,
+        enabled: bool = True,
+        command: str = "",
+        args: str = "",
+        env: str = "",
+        cwd: str = "",
+        encoding: str = "utf-8",
+        url: str = "",
+        headers: str = "",
+        timeout: float = 30.0,
+        sse_read_timeout: float = 300.0,
+    ) -> int:
+        return self._manager.add_mcp_server(
+            name=name,
+            transport=transport,
+            enabled=enabled,
+            command=command,
+            args=args,
+            env=env,
+            cwd=cwd,
+            encoding=encoding,
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            sse_read_timeout=sse_read_timeout,
+        )
 
     def update_mcp_server(self, server_id: int, **updates: object) -> bool:
         return self._manager.update_mcp_server(server_id, **updates)
@@ -130,11 +158,32 @@ class SupervisorClient:
     def get_skills(self) -> list[SkillEntry]:
         return self._manager.get_skills()
 
-    def add_skill(self, name: str, description: str = "", *, enabled: bool = True) -> int:
-        return self._manager.add_skill(name, description, enabled=enabled)
+    def add_skill(
+        self,
+        name: str,
+        description: str = "",
+        *,
+        enabled: bool = True,
+        version: str = "",
+        file_path: str = "",
+        install_dir: str = "",
+        installed_at: str = "",
+    ) -> int:
+        return self._manager.add_skill(
+            name,
+            description,
+            enabled=enabled,
+            version=version,
+            file_path=file_path,
+            install_dir=install_dir,
+            installed_at=installed_at,
+        )
 
     def update_skill(self, skill_id: int, **updates: object) -> bool:
         return self._manager.update_skill(skill_id, **updates)
 
     def remove_skill(self, skill_id: int) -> bool:
         return self._manager.remove_skill(skill_id)
+
+    def get_skills_dir(self) -> "Path":
+        return self._manager.get_skills_dir()

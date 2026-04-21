@@ -688,16 +688,99 @@ class Theme:
             background: {c.panel_bg};
         }}
 
-        /* ---- Model providers table ---- */
-        QTableWidget#modelProvidersTable {{
+        /* ---- Card container ---- */
+        QFrame#modelProviderCard {{
             background: {c.input_bg};
-            alternate-background-color: {c.sidebar_bg};
             border: 1px solid {c.border};
-            selection-background-color: {c.accent_subtle};
-            selection-color: {c.text_primary};
+            border-radius: 6px;
+        }}
+        QFrame#modelProviderCard:hover {{
+            border: 1px solid {c.accent};
+        }}
+        QFrame#modelProviderCard[enabled="true"] {{
+            border-left: 3px solid {c.status_ok};
+        }}
+        QFrame#modelProviderCard[enabled="true"]:hover {{
+            border-left: 3px solid {c.status_ok};
+        }}
+        QFrame#modelProviderCard[enabled="false"] {{
+            border-left: 3px solid {c.border};
         }}
 
-        /* ---- Danger button (flat, red-tinted) ---- */
+        /* ---- Card badges (pill tags) ---- */
+        QLabel#cardBadgeEnabled {{
+            color: {c.status_ok};
+            font-size: 8pt;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: {c.status_ok}18;
+        }}
+        QLabel#cardBadgeDisabled {{
+            color: {c.status_unknown};
+            font-size: 8pt;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: {c.status_unknown}18;
+        }}
+        QLabel#cardBadgeTransport {{
+            color: {c.accent};
+            font-size: 8pt;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: {c.accent}18;
+        }}
+        QLabel#cardBadgeVersion {{
+            color: {c.text_secondary};
+            font-size: 8pt;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: {c.border_light};
+        }}
+
+        /* ---- Card toggle button ---- */
+        QPushButton#cardToggleButton {{
+            background: {c.accent};
+            color: {c.accent_text};
+            border: 1px solid {c.accent};
+            border-radius: 4px;
+            padding: 2px 12px;
+            font-size: 8pt;
+            font-weight: 600;
+        }}
+        QPushButton#cardToggleButton:hover {{
+            background: {c.accent_hover};
+            border: 1px solid {c.accent_hover};
+        }}
+        QPushButton#cardToggleButton[active="false"] {{
+            background: transparent;
+            color: {c.text_secondary};
+            border: 1px solid {c.border};
+        }}
+        QPushButton#cardToggleButton[active="false"]:hover {{
+            background: {c.hover_bg};
+            border: 1px solid {c.text_secondary};
+        }}
+
+        /* ---- Card edit button ---- */
+        QPushButton#modelCardEditButton {{
+            background: transparent;
+            color: {c.text_secondary};
+            border: 1px solid {c.border};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 9pt;
+        }}
+        QPushButton#modelCardEditButton:hover {{
+            background: {c.hover_bg};
+            color: {c.text_primary};
+            border: 1px solid {c.text_secondary};
+        }}
+
+        /* ---- Danger button (theme-aware) ---- */
         QPushButton#dangerButton {{
             background: transparent;
             color: {c.status_error};
@@ -707,8 +790,14 @@ class Theme:
             font-size: 9pt;
         }}
         QPushButton#dangerButton:hover {{
-            background: #fef2f2;
+            background: {c.status_error}1a;
             border: 1px solid {c.status_error};
+        }}
+
+        /* ---- Card detail separator ---- */
+        QFrame#cardSeparator {{
+            background: {c.border_light};
+            max-height: 1px;
         }}
 
         /* ---- Model provider dialog ---- */
