@@ -62,6 +62,15 @@ class MainWindow(QMainWindow):
 
         self.resize(1520, 960)
 
+        # --- application icon ---
+        from pathlib import Path
+
+        _icon_path = Path(__file__).resolve().parents[2] / "resources" / "Sarma.png"
+        if _icon_path.exists():
+            from PySide6.QtGui import QIcon, QPixmap
+
+            self.setWindowIcon(QIcon(str(_icon_path)))
+
         # --- child widgets ---
         self._page_stack = QStackedWidget()
         self._activity_bar = QWidget()

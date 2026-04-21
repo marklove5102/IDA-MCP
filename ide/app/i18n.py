@@ -17,7 +17,7 @@ def normalize_language(language: str | None) -> str:
 
 _TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
-        "app.title": "IDA-MCP IDE",
+        "app.title": "Sarma",
         "common.bool.true": "yes",
         "common.bool.false": "no",
         "common.state.ok": "ok",
@@ -279,7 +279,7 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.skills.remove_confirm": "Remove skill \"{name}\" and delete its files?",
     },
     "zh": {
-        "app.title": "IDA-MCP IDE",
+        "app.title": "Sarma",
         "common.bool.true": "是",
         "common.bool.false": "否",
         "common.state.ok": "正常",

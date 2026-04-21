@@ -33,7 +33,7 @@
 - `--include-package=shared`
 - `--include-package=supervisor`
 - `--include-data-dir=app/assets=app/assets`（当 assets 非空时）
-- `--windows-icon-from-ico=app.ico`（当图标存在时）
+- `--windows-icon-from-ico=resources/Sarma.png`（应用图标）
 
 ## 使用方式
 

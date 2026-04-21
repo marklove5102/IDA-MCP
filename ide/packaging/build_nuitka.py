@@ -51,6 +51,11 @@ def build_command(*, onefile: bool = False) -> list[str]:
     if resources_root.exists() and any(resources_root.iterdir()):
         command.append(f"--include-data-dir={resources_root}=resources")
 
+    # Windows icon for the executable and taskbar
+    app_icon = resources_root / "Sarma.png"
+    if app_icon.exists():
+        command.append(f"--windows-icon-from-ico={app_icon}")
+
     command.append(str(launcher))
     return command
 
